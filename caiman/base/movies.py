@@ -1297,8 +1297,14 @@ class movie(ts.timeseries):
             frame_in = self[0]
             if bord_px is not None and np.sum(bord_px) > 0:
                 frame_in = frame_in[bord_px:-bord_px, bord_px:-bord_px]
-            out = cv2.VideoWriter(movie_name, fourcc, 30.,
-                                  tuple([int(magnification * s) for s in frame_in.shape[1::-1]]))
+
+            # Added by TomJ to debug magnification crash
+            resolution = tuple([int(magnification * s) for s in frame_in.shape[1::-1]])
+            out = cv2.VideoWriter(movie_name, fourcc, 30., resolution)
+
+        # Added by TomJ to avoid continuing to save movie after loop is done  
+        loop_count = 0
+        
         while looping:
 
             for iddxx, frame in enumerate(self):
@@ -1324,7 +1330,7 @@ class movie(ts.timeseries):
                                     thickness=1)
 
                     cv2.imshow('frame', frame)
-                    if save_movie:
+                    if save_movie and loop_count == 0:
                         if frame.ndim < 3:
                             frame = np.repeat(frame[:, :, None], 3, axis=-1)
                         frame = np.minimum((frame * 255.), 255).astype('u1')
@@ -1356,12 +1362,13 @@ class movie(ts.timeseries):
             if terminated:
                 break
 
-            if save_movie:
+            if save_movie and loop_count == 0:
                 out.release()
                 save_movie = False
 
             if do_loop:
                 looping = True
+                loop_count += 1
             else:
                 looping = False
 
@@ -1546,7 +1553,7 @@ def load(file_name: Union[str, List[str]],
 
             cv_failed = False
             dims = [length, height, width]                     # type: ignore # a list in one block and a tuple in another
-            if length == 0 or width == 0 or height == 0:       #CV failed to load
+            if length <= 0 or width == 0 or height == 0:       #CV failed to load
                 cv_failed = True
             if subindices is not None:
                 if not isinstance(subindices, list):
