@@ -218,6 +218,7 @@ class Estimates(object):
             caiman.utils.visualization.plot_contours(self.A[:, idx], img,
                                                      coordinates=coor_g,
                                                      display_numbers=display_numbers,
+                                                     number_colors='k',
                                                      cmap=cmap)
             plt.title('Accepted Components')
             bad = list(set(range(self.A.shape[1])) - set(idx))
@@ -225,6 +226,7 @@ class Estimates(object):
             caiman.utils.visualization.plot_contours(self.A[:, bad], img,
                                                      coordinates=coor_b,
                                                      display_numbers=display_numbers,
+                                                     number_colors='k',
                                                      cmap=cmap)
             plt.title('Rejected Components')
         return self
