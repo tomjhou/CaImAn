@@ -18,6 +18,9 @@ import pathlib
 import caiman as cm
 import caiman.paths
 
+# TomJ: We need this to disable Dropbox sync for mmap file. See line 525
+import subprocess
+
 def prepare_shape(mytuple: Tuple) -> Tuple:
     """ This promotes the elements inside a shape into np.uint64. It is intended to prevent overflows
         with some numpy operations that are sensitive to it, e.g. np.memmap """
@@ -518,6 +521,16 @@ def save_memmap(filenames: List[str],
                 else:
                     logging.debug('SAVING WITH numpy.tofile()')
                     Yr.tofile(fname_tot)
+
+                    if "Dropbox" in fname_tot:
+                        cmd = "Set-Content -Path '" + fname_tot + "' -Stream com.dropbox.ignored -Value 1"
+
+                        ret_code = subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+                        print(f"Disabled Dropbox sync for C-formatted file: {fname_tot}")
+                        if ret_code.returncode != 0:
+                            print(f"Error while running command to prevent Dropbox sync.")
+                            print(f"Command was: \"{cmd}\"")
+
             else:
                 big_mov = np.memmap(fname_tot,
                                     dtype=np.float32,
@@ -534,6 +547,7 @@ def save_memmap(filenames: List[str],
         fname_new = caiman.paths.fn_relocated(fname_tot + f'_frames_{Ttot}.mmap')
         try:
             # need to explicitly remove destination on windows
+            # TomJ: this is same as os.remove() on Windows
             os.unlink(fname_new)
         except OSError:
             pass
