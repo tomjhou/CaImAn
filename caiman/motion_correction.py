@@ -3203,6 +3203,7 @@ def motion_correction_piecewise(fname, splits, strides, overlaps, add_to_movie=0
             cmd = "Set-Content -Path '" + fname_tot + "' -Stream com.dropbox.ignored -Value 1"
 
             ret_code = subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+            print(f"Executed command to prevent Dropbox sync for file {fname_tot}")
             if ret_code.returncode != 0:
                 print(f"Error while running command to prevent Dropbox sync.")
                 print(f"Command was: \"{cmd}\"")
