@@ -976,6 +976,10 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
     s_comp = Slider(axcomp, 'Component', 0, nr + nb - 1, valinit=0)
     vmax = np.percentile(img, 95)
 
+    if vmax == 0:
+        # Sometimes only a few pixels are bright, so we need to go to 99th percentile.
+        vmax = np.percentile(img, 99)
+
     def update(val):
         i = int(np.round(s_comp.val))
         print(('Component:' + str(i)))

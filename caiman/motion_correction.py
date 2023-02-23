@@ -60,6 +60,9 @@ from typing import List, Optional, Tuple
 from skimage.transform import resize as resize_sk
 from skimage.transform import warp as warp_sk
 
+# This allows us to run PowerShell command that we need to prevent Dropbx sync
+import subprocess
+
 import caiman as cm
 import caiman.base.movies
 import caiman.motion_correction
@@ -3194,6 +3197,16 @@ def motion_correction_piecewise(fname, splits, strides, overlaps, add_to_movie=0
 
         np.memmap(fname_tot, mode='w+', dtype=np.float32,
                   shape=prepare_shape(shape_mov), order=order)
+
+        # Prevent Dropbox from trying to sync this file
+        if "Dropbox" in fname_tot:
+            cmd = "Set-Content -Path '" + fname_tot + "' -Stream com.dropbox.ignored -Value 1"
+
+            ret_code = subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+            if ret_code.returncode != 0:
+                print(f"Error while running command to prevent Dropbox sync.")
+                print(f"Command was: \"{cmd}\"")
+
         logging.info(f'Saving file as {fname_tot}')
     else:
         fname_tot = None
