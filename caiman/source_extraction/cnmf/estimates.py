@@ -14,6 +14,11 @@ from typing import List
 import time
 
 import caiman
+
+# TomJ: Need the next two imports for components slider
+import pylab as pl
+from matplotlib.widgets import Slider
+
 from .utilities import detrend_df_f, decimation_matrix
 from .spatial import threshold_components
 from .temporal import constrained_foopsi_parallel
@@ -172,7 +177,7 @@ class Estimates(object):
 
     def plot_contours(self, img=None, idx=None, thr_method='max',
                       thr=0.2, display_numbers=True, params=None,
-                      cmap='viridis'):
+                      cmap='viridis', font_color='r'):
         """view contours of all spatial footprints.
 
         Args:
@@ -198,37 +203,70 @@ class Estimates(object):
             img = np.reshape(np.array(self.A.mean(1)), self.dims, order='F')
         if self.coordinates is None:  # not hasattr(self, 'coordinates'):
             self.coordinates = caiman.utils.visualization.get_contours(self.A, img.shape, thr=thr, thr_method=thr_method)
-        plt.figure()
-        if params is not None:
-            plt.suptitle('min_SNR=%1.2f, rval_thr=%1.2f, use_cnn=%i'
-                         %(params.quality['min_SNR'],
-                           params.quality['rval_thr'],
-                           int(params.quality['use_cnn'])))
-        if idx is None:
-            caiman.utils.visualization.plot_contours(self.A, img, coordinates=self.coordinates,
-                                                     display_numbers=display_numbers,
-                                                     cmap=cmap)
+        fig = plt.figure(figsize=(15,10))
+        ax1 = plt.subplot(1, 2, 1)
+        ax2 = plt.subplot(1, 2, 2)
+
+        def update_plot(val):
+
+            print (f"value: {val}")
+
+            if val > 0:
+                # Update SNR threshold
+                self.update_params(min_SNR=val)
+
+            idx = self.idx_components
+
+            if params is not None:
+                plt.suptitle('min_SNR=%1.2f, rval_thr=%1.2f, use_cnn=%i'
+                             %(params.quality['min_SNR'],
+                               params.quality['rval_thr'],
+                               int(params.quality['use_cnn'])))
+            if idx is None:
+                caiman.utils.visualization.plot_contours(self.A, img, coordinates=self.coordinates,
+                                                         display_numbers=display_numbers,
+                                                         cmap=cmap)
+            else:
+                if not isinstance(idx, list):
+                    idx = idx.tolist()
+                coor_g = [self.coordinates[cr] for cr in idx]
+                bad = list(set(range(self.A.shape[1])) - set(idx))
+                coor_b = [self.coordinates[cr] for cr in bad]
+
+                plt.sca(ax1)
+                plt.cla()
+
+                caiman.utils.visualization.plot_contours(self.A[:, idx], img,
+                                                         coordinates=coor_g,
+                                                         display_numbers=display_numbers,
+                                                         number_colors=font_color,
+                                                         cmap=cmap)
+                plt.title(f'{len(idx)} accepted Components')
+                fig.canvas.draw_idle()
+                plt.pause(.01)
+
+                bad = list(set(range(self.A.shape[1])) - set(idx))
+
+                plt.sca(ax2)
+                plt.cla()
+                caiman.utils.visualization.plot_contours(self.A[:, bad], img,
+                                                         coordinates=coor_b,
+                                                         display_numbers=display_numbers,
+                                                         number_colors=font_color,
+                                                         cmap=cmap)
+                plt.title(f'{len(bad)} rejected Components')
+            plt.pause(0.01)
+
+        if self.min_SNR >= 0:
+            min_SNR = self.min_SNR
+            axcomp = pl.axes([0.05, 0.05, 0.9, 0.03])
+            s_comp = Slider(axcomp, 'SNR', 0, 25, valinit=min_SNR)
+            s_comp.on_changed(update_plot)
+            # 0 does not cause update of contours, just draws them as they are
+            s_comp.set_val(min_SNR)
         else:
-            if not isinstance(idx, list):
-                idx = idx.tolist()
-            coor_g = [self.coordinates[cr] for cr in idx]
-            bad = list(set(range(self.A.shape[1])) - set(idx))
-            coor_b = [self.coordinates[cr] for cr in bad]
-            plt.subplot(1, 2, 1)
-            caiman.utils.visualization.plot_contours(self.A[:, idx], img,
-                                                     coordinates=coor_g,
-                                                     display_numbers=display_numbers,
-                                                     number_colors='k',
-                                                     cmap=cmap)
-            plt.title('Accepted Components')
-            bad = list(set(range(self.A.shape[1])) - set(idx))
-            plt.subplot(1, 2, 2)
-            caiman.utils.visualization.plot_contours(self.A[:, bad], img,
-                                                     coordinates=coor_b,
-                                                     display_numbers=display_numbers,
-                                                     number_colors='k',
-                                                     cmap=cmap)
-            plt.title('Rejected Components')
+            # Evaluator has not been run yet (e.g. if we are showing plots from previous analysis)
+            update_plot(0)
         return self
 
     def plot_contours_nb(self, img=None, idx=None, thr_method='max',
@@ -1041,6 +1079,12 @@ class Estimates(object):
         """
         dims = imgs.shape[1:]
         opts = params.get_group('quality')
+
+        # Save SNR values so that we can dynamically update components
+        self.min_SNR = opts['min_SNR']
+        self.rval_thr = opts['rval_thr']
+        #self.r_values_lowest = opts['rval_lowest'] # Don't need this one
+
         idx_components, idx_components_bad, SNR_comp, r_values, cnn_preds = \
             estimate_components_quality_auto(imgs, self.A, self.C, self.b, self.f, self.YrA,
                                              params.get('data', 'fr'),
@@ -1075,6 +1119,58 @@ class Estimates(object):
                                                               idx_ecc))
             self.idx_components = np.intersect1d(self.idx_components, idx_ecc)
         return self
+
+    min_SNR = -1
+    rval_thr = -1
+
+    def update_params(self, min_SNR = None, rval_threshold=None):
+        """
+        Tom J.: Method to quickly reselect valid components when thresholds change.
+        Does not need to recompute r_values and SNR
+        """
+
+        if self.SNR_comp is None:
+            # Evaluator has not run yet, so no SNR calculations are present, and we can't
+            # update contour selection/rejection
+            return
+
+        def update_component_selection(r_values,
+                                       comp_SNR,
+                                       r_values_min=0.8,
+                                       r_values_lowest=-1,
+                                       min_SNR=2.5,
+                                       min_SNR_reject=0.5):
+            """
+            Tom J. This allows dynamic update of thresholds for accepting/rejecting spatial components.
+            Code is largely reused from function select_components_from_metrics() in caiman.components_evaluation.py
+            (around line 518 in that file)
+            """
+            idx_components_r = np.where(r_values >= r_values_min)[0]
+            idx_components_raw = np.where(comp_SNR > min_SNR)[0]
+            idx_components: Any = []  # changes type over the function
+
+            bad_comps = np.where((r_values <= r_values_lowest) | (comp_SNR <= min_SNR_reject))[0]
+
+            idx_components = np.union1d(idx_components, idx_components_r)
+            idx_components = np.union1d(idx_components, idx_components_raw)
+            idx_components = np.setdiff1d(idx_components, bad_comps)
+            idx_components_bad = np.setdiff1d(list(range(len(r_values))), idx_components)
+
+            return idx_components.astype(int), idx_components_bad.astype(int)
+
+        # Update one or both parameters
+        if min_SNR is not None:
+            self.min_SNR = min_SNR
+        if rval_threshold is not None:
+            self.rval_thr = rval_threshold
+
+        self.idx_components, self.idx_components_bad = update_component_selection(
+            self.r_values,
+            self.SNR_comp,
+            min_SNR=self.min_SNR,
+            r_values_min=self.rval_thr)
+            # r_values_lowest=self.r_values_lowest) # don't need this one
+
 
     def filter_components(self, imgs, params, new_dict={}, dview=None, select_mode='All'):
         """Filters components based on given thresholds without re-computing

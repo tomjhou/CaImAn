@@ -20,6 +20,7 @@ from math import sqrt, ceil
 import matplotlib as mpl
 import matplotlib.cm as cm
 from matplotlib.widgets import Slider
+import matplotlib.patheffects as PathEffects
 import numpy as np
 import pylab as pl
 from scipy.ndimage.measurements import center_of_mass
@@ -977,32 +978,32 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
     vmax = np.percentile(img, 95)
 
     if vmax == 0:
-        # Sometimes only a few pixels are bright, so we need to go to 99th percentile.
+        # TJ: Sometimes only a few pixels are bright, so we need to go to 99th percentile.
         vmax = np.percentile(img, 99)
 
     def update(val):
         i = int(np.round(s_comp.val))
-        print(('Component:' + str(i)))
+        print(('Component:' + str(i + 1)))
 
         if i < nr:
 
             ax1.cla()
             imgtmp = np.reshape(A[:, i].toarray(), (d1, d2), order='F')
             ax1.imshow(imgtmp, interpolation='None', cmap=pl.cm.gray, vmax=np.max(imgtmp)*0.5)
-            ax1.set_title('Spatial component ' + str(i + 1))
+            ax1.set_title('Spatial component ' + str(i + 1) + f"of {nr}")
             ax1.axis('off')
 
             ax2.cla()
             ax2.plot(np.arange(T), Y_r[i], 'c', linewidth=3)
             ax2.plot(np.arange(T), C[i], 'r', linewidth=2)
-            ax2.set_title('Temporal component ' + str(i + 1))
+            ax2.set_title('Temporal component for ' + str(i + 1))
             ax2.legend(labels=['Filtered raw data', 'Inferred trace'], loc=1)
             if r_values is not None:
                 metrics = 'Evaluation Metrics\nSpatial corr:% 7.3f\nSNR:% 18.3f\nCNN:' % (
                     r_values[i], SNR[i])
                 metrics += ' '*15+'N/A' if np.sum(cnn_preds) in (0, None) else '% 18.3f' % cnn_preds[i]
                 ax2.text(0.02, 0.97, metrics, ha='left', va='top', transform=ax2.transAxes,
-                        bbox=dict(edgecolor='k', facecolor='w', alpha=.5))
+                         bbox=dict(edgecolor='k', facecolor='w', alpha=.5))
 
             ax3.cla()
             ax3.imshow(img, interpolation='None', cmap=pl.cm.gray, vmax=vmax)
@@ -1015,7 +1016,7 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
             ax1.cla()
             bkgrnd = np.reshape(b[:, i - nr], (d1, d2), order='F')
             ax1.imshow(bkgrnd, interpolation='None')
-            ax1.set_title('Spatial background ' + str(i + 1 - nr))
+            ax1.set_title('Spatial background ' + str(i + 1 - nr) + f'of {nb}')
             ax1.axis('off')
 
             ax2.cla()
@@ -1131,9 +1132,11 @@ def plot_contours(A, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, dis
             colors = number_colors
         for i in range(np.minimum(nr, max_number)):
             if swap_dim:
-                ax.text(cm[i, 0], cm[i, 1], str(i + 1), color=colors, **number_args)
+                t = ax.text(cm[i, 0], cm[i, 1], str(i + 1), color=colors, **number_args)
             else:
-                ax.text(cm[i, 1], cm[i, 0], str(i + 1), color=colors, **number_args)
+                t = ax.text(cm[i, 1], cm[i, 0], str(i + 1), color=colors, **number_args)
+            t.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+
     return coordinates
 
 def plot_shapes(Ab, dims, num_comps=15, size=(15, 15), comps_per_row=None,
