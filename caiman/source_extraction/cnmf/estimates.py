@@ -8,6 +8,7 @@ Created on Thu Jul 12 11:11:45 2018
 
 import logging
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 import scipy.sparse
 from typing import List
@@ -206,70 +207,84 @@ class Estimates(object):
         if self.coordinates is None:  # not hasattr(self, 'coordinates'):
             self.coordinates = caiman.utils.visualization.get_contours(self.A, img.shape, thr=thr, thr_method=thr_method)
 
+        if self.contour_fig is not None:
+            if plt.fignum_exists(self.contour_fig.number):
+                # If user tries to open a new plot without closing the old one, then just come here and reuse old plot
+                print(f"Reusing contour figure {self.contour_fig.number}")
+                plt.figure(self.contour_fig.number)
+                plt.show()
+                return self
+
+        # Create new figure with axes
+        self.contour_fig = Figure()  # Must use this instead of plt.Figure, or else interactions with tk are weird
+
+        ax1 = self.contour_fig.add_subplot(1, 2, 1)
+        ax2 = self.contour_fig.add_subplot(1, 2, 2)
+
+        if params is not None:
+            self.contour_fig.suptitle('min_SNR=%1.2f, rval_thr=%1.2f, use_cnn=%i'
+                         %(params.quality['min_SNR'],
+                           params.quality['rval_thr'],
+                           int(params.quality['use_cnn'])))
+        if idx is None:
+            caiman.utils.visualization.plot_contours(self.A, None, img, coordinates=self.coordinates,
+                                                     display_numbers=display_numbers,
+                                                     cmap=cmap)
+        else:
+            if not isinstance(idx, list):
+                idx = idx.tolist()
+            coords = [self.coordinates[cr] for cr in range(self.A.shape[1])]
+
+            _, list_contours1, list_text1 = caiman.utils.visualization.plot_contours(self.A, idx, img,
+                                                     coordinates=coords,
+                                                     display_numbers=display_numbers,
+                                                     number_colors=font_color,
+                                                     cmap=cmap,
+                                                     ax=ax1)
+            title1 = ax1.set_title(f'{len(idx)} accepted Components')
+
+            bad = list(set(range(self.A.shape[1])) - set(idx))
+
+            _, list_contours2, list_text2 = caiman.utils.visualization.plot_contours(self.A, bad, img,
+                                                     coordinates=coords,
+                                                     display_numbers=display_numbers,
+                                                     number_colors=font_color,
+                                                     cmap=cmap,
+                                                     ax=ax2)
+            title2 = ax2.set_title(f'{len(bad)} rejected Components')
 
         def update_plot(val):
             """
             We should avoid using plt. commands here, as they won't work if figure is embedded in
             a tk() window. Fortunately, fig. and ax. commands still work.
             """
+
             if val > 0:
                 # Update SNR threshold
                 self.update_params(min_SNR=val)
 
             idx = self.idx_components
+            bad = list(set(range(self.A.shape[1])) - set(idx))
 
-            if params is not None:
-                self.contour_fig.suptitle('min_SNR=%1.2f, rval_thr=%1.2f, use_cnn=%i'
-                             %(params.quality['min_SNR'],
-                               params.quality['rval_thr'],
-                               int(params.quality['use_cnn'])))
-            if idx is None:
-                caiman.utils.visualization.plot_contours(self.A, img, coordinates=self.coordinates,
-                                                         display_numbers=display_numbers,
-                                                         cmap=cmap)
-            else:
-                if not isinstance(idx, list):
-                    idx = idx.tolist()
-                coor_g = [self.coordinates[cr] for cr in idx]
-                bad = list(set(range(self.A.shape[1])) - set(idx))
-                coor_b = [self.coordinates[cr] for cr in bad]
+            title1.set(text=f'{len(idx)} accepted Components')
+            title2.set(text=f'{len(bad)} rejected Components')
 
-                caiman.utils.visualization.plot_contours(self.A[:, idx], img,
-                                                         coordinates=coor_g,
-                                                         display_numbers=display_numbers,
-                                                         number_colors=font_color,
-                                                         cmap=cmap,
-                                                         ax=ax1)
-                ax1.set_title(f'{len(idx)} accepted Components')
-
-                bad = list(set(range(self.A.shape[1])) - set(idx))
-
-                caiman.utils.visualization.plot_contours(self.A[:, bad], img,
-                                                         coordinates=coor_b,
-                                                         display_numbers=display_numbers,
-                                                         number_colors=font_color,
-                                                         cmap=cmap,
-                                                         ax=ax2)
-                ax2.set_title(f'{len(bad)} rejected Components')
-
-            # The following is necessary or else slider stops working
-            plt.pause(0.01)
-
-        if self.contour_fig is not None:
-            if plt.fignum_exists(self.contour_fig.number):
-                # Old figure is still around. Just reuse it. This prevents creation of unnecessary graphs,
-                # as this is a particularly intensive one
-                print(f"Reusing contour figure {self.contour_fig.number}")
-                plt.figure(self.contour_fig.number)
-                plt.show()
-                # Redraw with current min_SNR value
-                update_plot(0)
-                return self
-
-        # Create new figure with axes
-        self.contour_fig = plt.figure(figsize=(15, 10))
-        ax1 = self.contour_fig.add_subplot(1, 2, 1)
-        ax2 = self.contour_fig.add_subplot(1, 2, 2)
+            for x in range(self.A.shape[1]):
+                lines = list_contours1[x]
+                accepted = (x in idx)
+                if lines is None:
+                    print(f"No lines for accepted component {x}")
+                else:
+                    for line in lines:
+                        line.set(visible=accepted)
+                lines = list_contours2[x]
+                if lines is None:
+                    print(f"No lines for rejected component {x}")
+                else:
+                    for line in lines:
+                        line.set(visible=(not accepted))
+                list_text1[x].set(visible = accepted)
+                list_text2[x].set(visible = not accepted)
 
         if self.SNR_comp is not None:
             if self.min_SNR is not None:
@@ -278,14 +293,11 @@ class Estimates(object):
                 min_SNR = 5
 
             # Create slider if we have SNR values
-            axcomp = pl.axes([0.05, 0.05, 0.9, 0.03])
-            s_comp = Slider(axcomp, 'SNR', 0, 25, valinit=min_SNR)
-            s_comp.on_changed(update_plot)
+            axcomp = self.contour_fig.add_axes([0.05, 0.05, 0.9, 0.03])
+            # Create class object so that garbage collector doesn't delete the slider when function exits
+            self.s_comp = Slider(axcomp, 'SNR', 0, 25, valinit=min_SNR)
+            self.s_comp.on_changed(update_plot)
 
-            s_comp.set_val(min_SNR)
-        else:
-            # Evaluator has not been run yet. Don't show slider, since there is no SNR data to threshold
-            update_plot(0)
         return self
 
     def plot_contours_nb(self, img=None, idx=None, thr_method='max',
