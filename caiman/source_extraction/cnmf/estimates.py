@@ -174,6 +174,8 @@ class Estimates(object):
         self.discarded_components = None
 
 
+    contour_fig = None
+
 
     def plot_contours(self, img=None, idx=None, thr_method='max',
                       thr=0.2, display_numbers=True, params=None,
@@ -203,14 +205,13 @@ class Estimates(object):
             img = np.reshape(np.array(self.A.mean(1)), self.dims, order='F')
         if self.coordinates is None:  # not hasattr(self, 'coordinates'):
             self.coordinates = caiman.utils.visualization.get_contours(self.A, img.shape, thr=thr, thr_method=thr_method)
-        fig = plt.figure(figsize=(15,10))
-        ax1 = plt.subplot(1, 2, 1)
-        ax2 = plt.subplot(1, 2, 2)
+
 
         def update_plot(val):
-
-            print (f"value: {val}")
-
+            """
+            We should avoid using plt. commands here, as they won't work if figure is embedded in
+            a tk() window. Fortunately, fig. and ax. commands still work.
+            """
             if val > 0:
                 # Update SNR threshold
                 self.update_params(min_SNR=val)
@@ -218,7 +219,7 @@ class Estimates(object):
             idx = self.idx_components
 
             if params is not None:
-                plt.suptitle('min_SNR=%1.2f, rval_thr=%1.2f, use_cnn=%i'
+                self.contour_fig.suptitle('min_SNR=%1.2f, rval_thr=%1.2f, use_cnn=%i'
                              %(params.quality['min_SNR'],
                                params.quality['rval_thr'],
                                int(params.quality['use_cnn'])))
@@ -233,39 +234,57 @@ class Estimates(object):
                 bad = list(set(range(self.A.shape[1])) - set(idx))
                 coor_b = [self.coordinates[cr] for cr in bad]
 
-                plt.sca(ax1)
-                plt.cla()
-
                 caiman.utils.visualization.plot_contours(self.A[:, idx], img,
                                                          coordinates=coor_g,
                                                          display_numbers=display_numbers,
                                                          number_colors=font_color,
-                                                         cmap=cmap)
-                plt.title(f'{len(idx)} accepted Components')
-                fig.canvas.draw_idle()
-                plt.pause(.01)
+                                                         cmap=cmap,
+                                                         ax=ax1)
+                ax1.set_title(f'{len(idx)} accepted Components')
 
                 bad = list(set(range(self.A.shape[1])) - set(idx))
 
-                plt.sca(ax2)
-                plt.cla()
                 caiman.utils.visualization.plot_contours(self.A[:, bad], img,
                                                          coordinates=coor_b,
                                                          display_numbers=display_numbers,
                                                          number_colors=font_color,
-                                                         cmap=cmap)
-                plt.title(f'{len(bad)} rejected Components')
+                                                         cmap=cmap,
+                                                         ax=ax2)
+                ax2.set_title(f'{len(bad)} rejected Components')
+
+            # The following is necessary even if window is embedded in tk window
             plt.pause(0.01)
 
-        if self.min_SNR >= 0:
-            min_SNR = self.min_SNR
+        if self.contour_fig is not None:
+            if plt.fignum_exists(self.contour_fig.number):
+                # Old figure is still around. Just reuse it. This prevents creation of unnecessary graphs,
+                # as this is a particularly intensive one
+                print(f"Reusing contour figure {self.contour_fig.number}")
+                plt.figure(self.contour_fig.number)
+                plt.show()
+                # Redraw with current min_SNR value
+                update_plot(0)
+                return self
+
+        # Create new figure with axes
+        self.contour_fig = plt.figure(figsize=(15, 10))
+        ax1 = self.contour_fig.add_subplot(1, 2, 1)
+        ax2 = self.contour_fig.add_subplot(1, 2, 2)
+
+        if self.SNR_comp is not None:
+            if self.min_SNR is not None:
+                min_SNR = self.min_SNR
+            else:
+                min_SNR = 5
+
+            # Create slider if we have SNR values
             axcomp = pl.axes([0.05, 0.05, 0.9, 0.03])
             s_comp = Slider(axcomp, 'SNR', 0, 25, valinit=min_SNR)
             s_comp.on_changed(update_plot)
-            # 0 does not cause update of contours, just draws them as they are
+
             s_comp.set_val(min_SNR)
         else:
-            # Evaluator has not been run yet (e.g. if we are showing plots from previous analysis)
+            # Evaluator has not been run yet. Don't show slider, since there is no SNR data to threshold
             update_plot(0)
         return self
 
@@ -1169,7 +1188,6 @@ class Estimates(object):
             self.SNR_comp,
             min_SNR=self.min_SNR,
             r_values_min=self.rval_thr)
-            # r_values_lowest=self.r_values_lowest) # don't need this one
 
 
     def filter_components(self, imgs, params, new_dict={}, dview=None, select_mode='All'):

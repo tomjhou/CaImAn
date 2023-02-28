@@ -3125,6 +3125,9 @@ def tile_and_correct_wrapper(params):
                                                                        shifts_opencv=shifts_opencv, gSig_filt=gSig_filt,
                                                                        use_cuda=use_cuda, border_nan=border_nan)
             shift_info.append([total_shift, start_step, xy_grid])
+        logging.info(f'Completed frame: {idxs[count]}')
+
+    logging.info(f'Completed batch with: {len(idxs)} frames')
 
     if out_fname is not None:
         outv = np.memmap(out_fname, mode='r+', dtype=np.float32,
@@ -3221,7 +3224,7 @@ def motion_correction_piecewise(fname, splits, strides, overlaps, add_to_movie=0
             use_cuda, border_nan, var_name_hdf5, is3D, indices])
 
     if dview is not None:
-        logging.info('** Starting parallel motion correction **')
+        logging.info(f'** Starting parallel motion correction with {len(idxs)} batches **')
         if HAS_CUDA and use_cuda:
             res = dview.map(tile_and_correct_wrapper,pars)
             dview.map(close_cuda_process, range(len(pars)))

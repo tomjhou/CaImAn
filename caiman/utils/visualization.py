@@ -1029,13 +1029,18 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
             new_val = np.round(s_comp.val - 1)
             if new_val < 0:
                 new_val = 0
-            s_comp.set_val(new_val)
+            else:
+                # TomJ: added else to avoid redraw if goes below 0
+                s_comp.set_val(new_val)
 
         elif event.key == 'right':
             new_val = np.round(s_comp.val + 1)
-            if new_val > nr + nb:
-                new_val = nr + nb
-            s_comp.set_val(new_val)
+            # TomJ: fixed one off error here
+            if new_val >= nr + nb:
+                new_val = nr + nb - 1
+            else:
+                # TomJ: added else to avoid redraw if goes past end
+                s_comp.set_val(new_val)
         else:
             pass
 
@@ -1048,7 +1053,7 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
 
 def plot_contours(A, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, display_numbers=True, max_number=None,
                   cmap=None, swap_dim=False, colors='w', number_colors=None, vmin=None, vmax=None, coordinates=None,
-                  contour_args={}, number_args={}, **kwargs):
+                  contour_args={}, number_args={}, ax=None, **kwargs):
     """Plots contour of spatial components against a background image and returns their coordinates
 
      Args:
@@ -1104,13 +1109,15 @@ def plot_contours(A, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, dis
             color = kwargs[key]
             kwargs.pop(key)
 
-    ax = pl.gca()
+    if ax is None:
+        ax = pl.gca()
+    ax.cla()
     if vmax is None and vmin is None:
-        pl.imshow(Cn, interpolation=None, cmap=cmap,
+        ax.imshow(Cn, interpolation=None, cmap=cmap,
                   vmin=np.percentile(Cn[~np.isnan(Cn)], 1),
                   vmax=np.percentile(Cn[~np.isnan(Cn)], 99))
     else:
-        pl.imshow(Cn, interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
+        ax.imshow(Cn, interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
 
     if coordinates is None:
         coordinates = get_contours(A, np.shape(Cn), thr, thr_method, swap_dim)
@@ -1118,7 +1125,7 @@ def plot_contours(A, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, dis
         v = c['coordinates']
         c['bbox'] = [np.floor(np.nanmin(v[:, 1])), np.ceil(np.nanmax(v[:, 1])),
                      np.floor(np.nanmin(v[:, 0])), np.ceil(np.nanmax(v[:, 0]))]
-        pl.plot(*v.T, c=colors, **contour_args)
+        ax.plot(*v.T, c=colors, **contour_args)
 
     if display_numbers:
         d1, d2 = np.shape(Cn)
