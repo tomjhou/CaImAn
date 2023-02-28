@@ -252,7 +252,7 @@ class Estimates(object):
                                                          ax=ax2)
                 ax2.set_title(f'{len(bad)} rejected Components')
 
-            # The following is necessary even if window is embedded in tk window
+            # The following is necessary or else slider stops working
             plt.pause(0.01)
 
         if self.contour_fig is not None:
