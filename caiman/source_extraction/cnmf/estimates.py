@@ -245,6 +245,10 @@ class Estimates(object):
                                                      ax=ax2)
             title2 = ax2.set_title(f'{len(bad)} rejected Components')
 
+        """
+        These functions are LOCAL to plot_contours(), and help to dynamically update
+        the accepted/rejected components via sliders
+        """
         def update_plot_rval(val):
 
             self.update_params(rval_threshold=val)
@@ -266,6 +270,8 @@ class Estimates(object):
             title1.set(text=f'{len(idx)} accepted Components')
             title2.set(text=f'{len(bad)} rejected Components')
 
+            num_accepted = 0
+            num_bad = 0
             for x in range(self.A.shape[1]):
                 lines = list_contours1[x]
                 accepted = (x in idx)
@@ -280,8 +286,14 @@ class Estimates(object):
                 else:
                     for line in lines:
                         line.set(visible=(not accepted))
-                list_text1[x].set(visible = accepted)
-                list_text2[x].set(visible = not accepted)
+                list_text1[x].set(visible=accepted)
+                list_text2[x].set(visible=not accepted)
+                if accepted:
+                    num_accepted += 1
+                    list_text1[x].set(text=str(num_accepted))
+                else:
+                    num_bad += 1
+                    list_text2[x].set(text=str(num_bad))
 
         if self.SNR_comp is not None:
             if self.min_SNR is not None:
@@ -299,7 +311,7 @@ class Estimates(object):
             ax_snr = self.contour_fig.add_axes([0.1, 0.04, 0.8, 0.03])
             # Create class object so that garbage collector doesn't delete the slider when function exits
             self.s_r = Slider(ax_r, 'r-vals', 0, 1.0, valinit=rval_thr)
-            self.s_snr = Slider(ax_snr, 'SNR', 0, 25, valinit=min_SNR)
+            self.s_snr = Slider(ax_snr, 'SNR', 0, 100, valinit=min_SNR)
             self.s_r.on_changed(update_plot_rval)
             self.s_snr.on_changed(update_plot_min_snr)
 
