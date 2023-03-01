@@ -2015,7 +2015,9 @@ def compute_W(Y, A, C, dims, radius, data_fits_in_memory=True, ssub=1, tsub=1, p
             data = pd_solve(tmp, B.dot(tmp2))
             return index, data
 
-    Q = list((parmap if parallel else map)(process_pixel, range(d1 * d2)))
+    logging.info("About to run parmap/map. Please wait a while (e.g. 15 minutes for a 20 min video)")
+    Q = list((parmap if parallel else map)(process_pixel, range(d1 * d2)))  # TomJ: This line takes ~15 minutes to run.
+    logging.info("Finished running parmap/map.")
     indices, data = np.array(Q, dtype=object).T
     indptr = np.concatenate([[0], np.cumsum(list(map(len, indices)))])
     indices = np.concatenate(indices)

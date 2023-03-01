@@ -207,14 +207,6 @@ class Estimates(object):
         if self.coordinates is None:  # not hasattr(self, 'coordinates'):
             self.coordinates = caiman.utils.visualization.get_contours(self.A, img.shape, thr=thr, thr_method=thr_method)
 
-        if self.contour_fig is not None:
-            if plt.fignum_exists(self.contour_fig.number):
-                # If user tries to open a new plot without closing the old one, then just come here and reuse old plot
-                print(f"Reusing contour figure {self.contour_fig.number}")
-                plt.figure(self.contour_fig.number)
-                plt.show()
-                return self
-
         # Create new figure with axes
         self.contour_fig = Figure()  # Must use this instead of plt.Figure, or else interactions with tk are weird
 
@@ -253,15 +245,20 @@ class Estimates(object):
                                                      ax=ax2)
             title2 = ax2.set_title(f'{len(bad)} rejected Components')
 
-        def update_plot(val):
-            """
-            We should avoid using plt. commands here, as they won't work if figure is embedded in
-            a tk() window. Fortunately, fig. and ax. commands still work.
-            """
+        def update_plot_rval(val):
 
-            if val > 0:
-                # Update SNR threshold
-                self.update_params(min_SNR=val)
+            self.update_params(rval_threshold=val)
+            update_plot()
+
+        def update_plot_min_snr(val):
+
+            self.update_params(min_SNR=val)
+            update_plot()
+
+        def update_plot():
+            """
+            Avoid  plt. commands here, as they won't work if figure is embedded in tk() window.
+            """
 
             idx = self.idx_components
             bad = list(set(range(self.A.shape[1])) - set(idx))
@@ -292,11 +289,19 @@ class Estimates(object):
             else:
                 min_SNR = 5
 
+            if self.rval_thr is not None:
+                rval_thr = self.rval_thr
+            else:
+                rval_thr = 0.8
+
             # Create slider if we have SNR values
-            axcomp = self.contour_fig.add_axes([0.05, 0.05, 0.9, 0.03])
+            ax_r = self.contour_fig.add_axes([0.1, 0.08, 0.8, 0.03])
+            ax_snr = self.contour_fig.add_axes([0.1, 0.04, 0.8, 0.03])
             # Create class object so that garbage collector doesn't delete the slider when function exits
-            self.s_comp = Slider(axcomp, 'SNR', 0, 25, valinit=min_SNR)
-            self.s_comp.on_changed(update_plot)
+            self.s_r = Slider(ax_r, 'r-vals', 0, 1.0, valinit=rval_thr)
+            self.s_snr = Slider(ax_snr, 'SNR', 0, 25, valinit=min_SNR)
+            self.s_r.on_changed(update_plot_rval)
+            self.s_snr.on_changed(update_plot_min_snr)
 
         return self
 
