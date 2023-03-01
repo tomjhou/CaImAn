@@ -1152,7 +1152,7 @@ def plot_contours(A, idx, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9
                 t = ax.text(cm[i, 0], cm[i, 1], str(i + 1), color=colors, **number_args)
             else:
                 t = ax.text(cm[i, 1], cm[i, 0], str(i + 1), color=colors, **number_args)
-#            t.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            t.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
             vis = i in idx
             t.set(visible=vis)
             list_text[i] = t

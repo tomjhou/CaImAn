@@ -315,6 +315,8 @@ class Estimates(object):
             self.s_r.on_changed(update_plot_rval)
             self.s_snr.on_changed(update_plot_min_snr)
 
+        self.cmd_update_contour_plot = update_plot
+
         return self
 
     def plot_contours_nb(self, img=None, idx=None, thr_method='max',
