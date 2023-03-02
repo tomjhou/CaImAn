@@ -18,7 +18,7 @@ import caiman
 
 # TomJ: Need the next two imports for components slider
 import pylab as pl
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, RangeSlider
 
 from .utilities import detrend_df_f, decimation_matrix
 from .spatial import threshold_components
@@ -177,6 +177,38 @@ class Estimates(object):
 
     contour_fig = None
 
+    class RangeSliderLog(RangeSlider):
+
+        """Logarithmic slider.
+
+            Takes in every method and function of the matplotlib's slider.
+
+            Set slider to *val* visually so the slider still is lineat but display 10**val next to the slider.
+
+            Return 10**val to the update function (func)"""
+
+        def set_val(self, val):
+
+            val = np.sort(val)
+#            _api.check_shape((2,), val=val)
+            vmin, vmax = val
+            vmin = self._min_in_bounds(vmin)
+            vmax = self._max_in_bounds(vmax)
+            self._update_selection_poly(vmin, vmax)
+            if self.orientation == "vertical":
+                self._handles[0].set_ydata([vmin])
+                self._handles[1].set_ydata([vmax])
+            else:
+                self._handles[0].set_xdata([vmin])
+                self._handles[1].set_xdata([vmax])
+
+            self.valtext.set_text(self._format((np.power(10, vmin), np.power(10, vmax))))
+
+            if self.drawon:
+                self.ax.figure.canvas.draw_idle()
+            self.val = (vmin, vmax)
+            if self.eventson:
+                self._observers.process("changed", (vmin, vmax))
 
     def plot_contours(self, img=None, idx=None, thr_method='max',
                       thr=0.2, display_numbers=True, params=None,
@@ -245,6 +277,9 @@ class Estimates(object):
                                                      ax=ax2)
             title2 = ax2.set_title(f'{len(bad)} rejected Components')
 
+        # Run this so that subsequent removal of large/small neurons will go faster
+        self.threshold_spatial_components()
+
         """
         These functions are LOCAL to plot_contours(), and help to dynamically update
         the accepted/rejected components via sliders
@@ -259,10 +294,24 @@ class Estimates(object):
             self.update_params(min_SNR=val)
             update_plot()
 
-        def update_plot():
+        def remove_large_small_neurons(val=None):  # Need dummy arg so this can be target of slider callback
+            # Because self.remove_small_large_neurons can only take away, not add, we need to
+            # call update_params() to regenerate full idx_list.
+            self.update_params()
+            update_plot()
+
+        def update_plot(val=None):
             """
             Avoid  plt. commands here, as they won't work if figure is embedded in tk() window.
             """
+
+            v = self.s_cell_size_range_slider.val
+            if self.dims[0] > 450:
+                v10 = (np.power(10, v[0]), np.power(10, v[1]))
+            else:
+                v10 = (np.power(10, v[0])/4, np.power(10, v[1])/4)
+
+            self.remove_small_large_neurons(min_size_neuro=v10[0], max_size_neuro=v10[1])
 
             idx = self.idx_components
             bad = list(set(range(self.A.shape[1])) - set(idx))
@@ -307,15 +356,17 @@ class Estimates(object):
                 rval_thr = 0.8
 
             # Create slider if we have SNR values
-            ax_r = self.contour_fig.add_axes([0.1, 0.08, 0.8, 0.03])
-            ax_snr = self.contour_fig.add_axes([0.1, 0.04, 0.8, 0.03])
             # Create class object so that garbage collector doesn't delete the slider when function exits
-            self.s_r = Slider(ax_r, 'r-vals', 0, 1.0, valinit=rval_thr)
-            self.s_snr = Slider(ax_snr, 'SNR', 0, 100, valinit=min_SNR)
+            self.s_r = Slider(self.contour_fig.add_axes([0.1, 0.08, 0.8, 0.03]), 'r-vals', 0, 1.0, valinit=rval_thr)
+            self.s_snr = Slider(self.contour_fig.add_axes([0.1, 0.04, 0.8, 0.03]), 'SNR', 0, 100, valinit=min_SNR)
             self.s_r.on_changed(update_plot_rval)
             self.s_snr.on_changed(update_plot_min_snr)
 
-        self.cmd_update_contour_plot = update_plot
+            # Slider to change max/min neuron size
+            self.s_cell_size_range_slider = self.RangeSliderLog(self.contour_fig.add_axes([0.15, 0.9, 0.7, 0.03]),
+                                     'Min/max neuron area (log scale)', 0, 4, valinit=(np.log10(25), np.log10(500)))
+            self.s_cell_size_range_slider.on_changed(remove_large_small_neurons)
+
 
         return self
 
