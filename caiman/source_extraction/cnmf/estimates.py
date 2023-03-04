@@ -854,7 +854,7 @@ class Estimates(object):
 
         else:
             mov.play(q_min=q_min, q_max=q_max, magnification=magnification,
-                     save_movie=save_movie, movie_name=movie_name, do_loop=True)
+                     save_movie=save_movie, movie_name=movie_name, do_loop=False)
 
         return mov
 
