@@ -1300,7 +1300,7 @@ class movie(ts.timeseries):
 
             # Added by TomJ to debug magnification crash
             resolution = tuple([int(magnification * s) for s in frame_in.shape[1::-1]])
-            out = cv2.VideoWriter(movie_name, fourcc, 30., resolution)
+            out = cv2.VideoWriter(movie_name, fourcc, 60., resolution)
 
         # Added by TomJ to avoid continuing to save movie after loop is done  
         loop_count = 0
