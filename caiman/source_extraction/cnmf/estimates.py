@@ -814,7 +814,7 @@ class Estimates(object):
             import cv2
             if save_movie:
                 fourcc = cv2.VideoWriter_fourcc(*opencv_codec)
-                out = cv2.VideoWriter(movie_name, fourcc, 30.0,
+                out = cv2.VideoWriter(movie_name, fourcc, 60.0,
                                       tuple([int(magnification*s) for s in mov.shape[1:][::-1]]))
             contours = []
             for a in self.A.T.toarray():
