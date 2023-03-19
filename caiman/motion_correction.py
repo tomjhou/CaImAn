@@ -2863,8 +2863,8 @@ def motion_correct_batch_rigid(fname, max_shifts, dview=None, splits=56, num_spl
             m = cm.movie(
                 np.array([high_pass_filter_space(m_, gSig_filt) for m_ in m]))
 
-            ans = messagebox.askyesno(message="Save high-pass filtered movie? (not motion-corrected)")
-            if ans:
+#            ans = messagebox.askyesno(message="Save high-pass filtered movie? (not motion-corrected)")
+            if False:  # ans:
                 parts = os.path.splitext(fname)
                 save_file = parts[0] + "_high_pass_filtered.avi"
                 m.save(save_file)
