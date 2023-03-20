@@ -1320,7 +1320,9 @@ class movie(ts.timeseries):
             close_flag = True
             print('Closed Figure!')
 
-        fig.canvas.mpl_connect('close_event', on_close)
+        if 'fig' in locals():
+            fig.canvas.mpl_connect('close_event', on_close)
+
         close_flag = False
 
         while looping:
@@ -1346,6 +1348,16 @@ class movie(ts.timeseries):
                                     fontScale=0.8,
                                     color=(255, 255, 255),
                                     thickness=1)
+
+                    try:
+                        if cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) < 1:
+                            # TomJ: Detects if user has closed window
+                            looping = False
+                            terminated = True
+                            break
+                    except:
+                        # On first frame, window won't exist yet. Just ignore error.
+                        pass
 
                     cv2.imshow('frame', frame)
                     if save_movie and loop_count == 0:

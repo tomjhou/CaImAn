@@ -771,6 +771,8 @@ class Estimates(object):
             Y_rec_color = Y_rec_color.reshape((dims) + (-1, 3), order='F').transpose(2, 0, 1, 3)
 
         AC = self.A.dot(self.C[:, frame_range])
+        # TomJ: float64 will cause memory issues, use float32 instead
+        AC = AC.astype('float32')
         Y_rec = AC.reshape(dims + (-1,), order='F')
         Y_rec = Y_rec.transpose([2, 0, 1])
         if self.W is not None:
