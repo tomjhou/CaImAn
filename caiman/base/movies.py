@@ -11,6 +11,7 @@ Contains the movie class.
 # \copyright GNU General Public License v2.0
 # \date Created on Tue Jun 30 20:56:07 2015 , Updated on Fri Aug 19 17:30:11 2016
 
+# print('  base.movies starting Import')
 from builtins import str
 from builtins import range
 from past.utils import old_div
@@ -28,9 +29,11 @@ import pylab as pl
 import scipy.ndimage
 import scipy
 from scipy.io import loadmat
+# print('  base.movies Importing skimage (takes ~1 second)')
 from skimage.transform import warp, AffineTransform
 from skimage.feature import match_template
 import sklearn
+# print('  base.movies Importing sklearn')
 from sklearn.cluster import KMeans
 from sklearn.decomposition import NMF, IncrementalPCA, FastICA
 from sklearn.metrics.pairwise import euclidean_distances
@@ -43,10 +46,13 @@ import warnings
 # import z5py
 from zipfile import ZipFile
 
+# print('  base.movies Importing caiman')
 import caiman as cm
 
+# print('  base.movies Importing caiman.base.timeseries (takes a while)')
 from . import timeseries
 
+# print('  base.movies cv2 setting num threads')
 try:
     cv2.setNumThreads(0)
 except:
@@ -56,9 +62,12 @@ from . import timeseries as ts
 from .traces import trace
 
 from ..mmapping import load_memmap
+# print('  base.movies Importing caiman.utils/visualization (takes a while)')
 from ..utils import visualization
+# print('  base.movies Importing caiman.import')
 from .. import summary_images as si
 from ..motion_correction import apply_shift_online, motion_correct_online
+# print('  base.movies done Importing')
 
 
 class movie(ts.timeseries):
@@ -1304,7 +1313,16 @@ class movie(ts.timeseries):
 
         # Added by TomJ to avoid continuing to save movie after loop is done  
         loop_count = 0
-        
+
+        print('Type "q" to stop playing of movie')
+
+        def on_close(event):
+            close_flag = True
+            print('Closed Figure!')
+
+        fig.canvas.mpl_connect('close_event', on_close)
+        close_flag = False
+
         while looping:
 
             for iddxx, frame in enumerate(self):
@@ -1358,6 +1376,10 @@ class movie(ts.timeseries):
 
                 else:
                     raise Exception('Unknown backend!')
+
+                if close_flag:
+                    looping = False
+                    terminated = True
 
             if terminated:
                 break
