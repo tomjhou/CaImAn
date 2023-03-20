@@ -3140,7 +3140,6 @@ def tile_and_correct_wrapper(params):
 
         # Increment frame count in thread-safe manner
         progress_counter.inc()
-#        caiman.progress_object.increment(caiman.progress_object.COUNT_IDX)
 
         logging.info(f'Completed frame: {idxs[count]}')
 
