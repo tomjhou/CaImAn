@@ -366,7 +366,8 @@ class Estimates(object):
             self.s_cell_size_range_slider = self.RangeSliderLog(self.contour_fig.add_axes([0.15, 0.9, 0.7, 0.03]),
                                      'Min/max neuron area (log scale)', 0, 4, valinit=(np.log10(25), np.log10(500)))
             self.s_cell_size_range_slider.on_changed(remove_large_small_neurons)
-
+            # Need to call this once or else the small/large neuron thresholds will not be applied
+            update_plot()
 
         return self
 
