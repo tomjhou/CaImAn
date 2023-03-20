@@ -506,7 +506,13 @@ def grouper(n: int, iterable, fillvalue: bool = None):
 def evaluate_components_placeholder(params):
     import caiman as cm
     fname, traces, A, C, b, f, final_frate, remove_baseline, N, robust_std, Athresh, Npeaks, thresh_C = params
+
     Yr, dims, T = cm.load_memmap(fname)
+
+    # TomJ: hack to allow working with sliced movie. Only works if slice is from the beginning of movie
+    if C.shape[1] != T:
+        Yr = Yr[:,0:C.shape[1]]
+        T = C.shape[1]
     Y = np.reshape(Yr, dims + (T,), order='F')
     fitness_raw, fitness_delta, _, _, r_values, significant_samples = \
         evaluate_components(Y, traces, A, C, b, f, final_frate, remove_baseline=remove_baseline,

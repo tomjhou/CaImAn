@@ -87,7 +87,11 @@ def cnmf_patches(args_in):
 
     import logging
     from . import cnmf
-    file_name, idx_, shapes, params = args_in
+
+    file_name, idx_, shapes, frames_slice, progress_counter, params = args_in
+
+    if progress_counter is not None:
+        progress_counter.inc(0.2)
 
     logger = logging.getLogger(__name__)
     name_log = os.path.basename(
@@ -102,7 +106,7 @@ def cnmf_patches(args_in):
     logger.debug(name_log + 'START')
 
     logger.debug(name_log + 'Read file')
-    Yr, dims, timesteps = load_memmap(file_name)
+    Yr, dims, total_frames = load_memmap(file_name)
 
     # slicing array (takes the min and max index in n-dimensional space and
     # cuts the box they define)
@@ -112,10 +116,11 @@ def cnmf_patches(args_in):
     indices = np.unravel_index([upper_left_corner, lower_right_corner],
                                dims, order='F')  # indices as tuples
     slices = [slice(min_dim, max_dim + 1) for min_dim, max_dim in indices]
-    # insert slice for timesteps, equivalent to :
-    slices.insert(0, slice(timesteps))
+    # insert slice for total_frames, equivalent to :
+    slices.insert(0, frames_slice)  # TomJ: Added this to allow running CNMF-E on a subset of slices
+#    slices.insert(0, slice(total_frames))  # TomJ: deleted this, and replaced it with the one above
 
-    images = np.reshape(Yr.T, [timesteps] + list(dims), order='F')
+    images = np.reshape(Yr.T, [total_frames] + list(dims), order='F')
     if params.get('patch', 'in_memory'):
         images = np.array(images[tuple(slices)], dtype=np.float32)
     else:
@@ -123,7 +128,9 @@ def cnmf_patches(args_in):
 
     logger.debug(name_log+'file loaded')
 
-    if (np.sum(np.abs(np.diff(images.reshape(timesteps, -1).T)))) > 0.1:
+    slice_frames = images.shape[0]
+
+    if (np.sum(np.abs(np.diff(images.reshape(slice_frames, -1).T)))) > 0.1:
 
         opts = copy(params)
         opts.set('patch', {'n_processes': 1, 'rf': None, 'stride': None})
@@ -135,6 +142,9 @@ def cnmf_patches(args_in):
         cnm = cnmf.CNMF(n_processes=1, params=opts)
 
         cnm = cnm.fit(images)
+
+        if progress_counter is not None:
+            progress_counter.inc(0.8)
         return [idx_, shapes, scipy.sparse.coo_matrix(cnm.estimates.A),
                 cnm.estimates.b, cnm.estimates.C, cnm.estimates.f,
                 cnm.estimates.S, cnm.estimates.bl, cnm.estimates.c1,
@@ -147,7 +157,8 @@ def cnmf_patches(args_in):
 
 def run_CNMF_patches(file_name, shape, params, gnb=1, dview=None,
                      memory_fact=1, border_pix=0, low_rank_background=True,
-                     del_duplicates=False, indices=[slice(None)]*3):
+                     del_duplicates=False, indices=[slice(None)]*3,
+                     progress_counter=None):
     """Function that runs CNMF in patches
 
      Either in parallel or sequentially, and return the result for each.
@@ -242,9 +253,14 @@ def run_CNMF_patches(file_name, shape, params, gnb=1, dview=None,
         dims, rfs, strides, border_pix=border_pix, indices=indices[1:])
     args_in = []
     patch_centers = []
+    if progress_counter is not None:
+        progress_counter.set_max(len(idx_flat)*2)
     for id_f, id_2d in zip(idx_flat, idx_2d):
         #        print(id_2d)
-        args_in.append((file_name, id_f, id_2d, params_copy))
+        # TomJ: Added indices[0] to allow time slicing
+        # Added progress_counter to allow progress reporting
+        # These require parallel changes in cnmf_patches to parse the extra args
+        args_in.append((file_name, id_f, id_2d, indices[0], progress_counter, params_copy))
         if del_duplicates:
             foo = np.zeros(d, dtype=bool)
             foo[id_f] = 1
@@ -310,15 +326,17 @@ def run_CNMF_patches(file_name, shape, params, gnb=1, dview=None,
 
             patch_id += 1
 
+    T_sliced = len(range(*indices[0].indices(T)))
+
     # INITIALIZING
     nb_patch = params.get('patch', 'nb_patch')
-    C_tot = np.zeros((count, T), dtype=np.float32)
+    C_tot = np.zeros((count, T_sliced), dtype=np.float32)
     if params.get('init', 'center_psf'):
-        S_tot = np.zeros((count, T), dtype=np.float32)
+        S_tot = np.zeros((count, T_sliced), dtype=np.float32)
     else:
         S_tot = None
-    YrA_tot = np.zeros((count, T), dtype=np.float32)
-    F_tot = np.zeros((max(0, num_patches * nb_patch), T), dtype=np.float32)
+    YrA_tot = np.zeros((count, T_sliced), dtype=np.float32)
+    F_tot = np.zeros((max(0, num_patches * nb_patch), T_sliced), dtype=np.float32)
     mask = np.zeros(d, dtype=np.uint8)
     sn_tot = np.zeros((d))
 
