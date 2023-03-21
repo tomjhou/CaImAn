@@ -3239,7 +3239,7 @@ def motion_correction_piecewise(fname, splits, strides, overlaps, add_to_movie: 
             newoverlaps, newstrides, shifts_opencv, nonneg_movie, gSig_filt, is_fiji,
             use_cuda, border_nan, var_name_hdf5, is3D, indices, progress_counter])
 
-    print(f'Created {len(idxs)} jobs')
+    print(f'Function "motion_correction_piecewise()" created {len(idxs)} jobs')
     if dview is not None:
         logging.info(f'** Starting parallel motion correction with {len(idxs)} batches **')
         if HAS_CUDA and use_cuda:
