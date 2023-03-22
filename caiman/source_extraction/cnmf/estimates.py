@@ -34,6 +34,12 @@ from .initialization import downscale
 
 
 class Estimates(object):
+
+    # Local copy of two parameters used to determine whether spatial components are valid.
+    # This is necessary so that sliders will work in component plots.
+    min_SNR = -1
+    rval_thr = -1
+
     """
     Class for storing and reusing the analysis results and performing basic
     processing and plotting operations.
@@ -1232,9 +1238,6 @@ class Estimates(object):
             self.idx_components = np.intersect1d(self.idx_components, idx_ecc)
         return self
 
-    min_SNR = -1
-    rval_thr = -1
-
     def update_params(self, min_SNR = None, rval_threshold=None):
         """
         Tom J.: Method to quickly reselect valid components when thresholds change.
@@ -1273,6 +1276,7 @@ class Estimates(object):
         # Update one or both parameters
         if min_SNR is not None:
             self.min_SNR = min_SNR
+
         if rval_threshold is not None:
             self.rval_thr = rval_threshold
 

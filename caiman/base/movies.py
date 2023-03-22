@@ -1311,9 +1311,6 @@ class movie(ts.timeseries):
             resolution = tuple([int(magnification * s) for s in frame_in.shape[1::-1]])
             out = cv2.VideoWriter(movie_name, fourcc, 60., resolution)
 
-        # Added by TomJ to avoid continuing to save movie after loop is done  
-        loop_count = 0
-
         print('Type "q" to stop playing of movie')
 
         def on_close(event):
@@ -1360,7 +1357,7 @@ class movie(ts.timeseries):
                         pass
 
                     cv2.imshow('frame', frame)
-                    if save_movie and loop_count == 0:
+                    if save_movie:
                         if frame.ndim < 3:
                             frame = np.repeat(frame[:, :, None], 3, axis=-1)
                         frame = np.minimum((frame * 255.), 255).astype('u1')
@@ -1396,13 +1393,12 @@ class movie(ts.timeseries):
             if terminated:
                 break
 
-            if save_movie and loop_count == 0:
+            if save_movie:
                 out.release()
-                save_movie = False
+                save_movie = False  # This prevents movie from saving after first pass
 
             if do_loop:
                 looping = True
-                loop_count += 1
             else:
                 looping = False
 
