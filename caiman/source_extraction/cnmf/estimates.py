@@ -698,7 +698,8 @@ class Estimates(object):
                    bpx=0, thr=0., save_movie=False,
                    movie_name='results_movie.avi',
                    display=True, opencv_codec='H264',
-                   use_color=False, gain_color=4, gain_bck=0.2):
+                   use_color=False, gain_color=4, gain_bck=0.2,
+                   decimation=5):
         """
         Displays a movie with three panels (original data (left panel),
         reconstructed data (middle panel), residual (right panel))
@@ -763,16 +764,23 @@ class Estimates(object):
         else:
             imgs: caiman.base.movies.movie = imgs[frame_range]
 
+        # TomJ: Convert self.A and self.C to float32, to reduce memory usage
+        A_32 = np.float32(self.A.toarray())
+        C_32 = np.float32(self.C)
+
+        if decimation > 1:
+            imgs = imgs[0::decimation]
+            C_32 = C_32[:, 0::decimation]
+
         if use_color:
             cols_c = np.random.rand(self.C.shape[0], 1, 3)*gain_color
-            Cs = np.expand_dims(self.C[:, frame_range], -1)*cols_c
+            cols_c = np.float32(cols_c)
+            Cs = np.expand_dims(C_32[:, frame_range], -1)*cols_c
             #AC = np.tensordot(np.hstack((self.A.toarray(), self.b)), Cs, axes=(1, 0))
-            Y_rec_color = np.tensordot(self.A.toarray(), Cs, axes=(1, 0))
+            Y_rec_color = np.tensordot(A_32, Cs, axes=(1, 0))
             Y_rec_color = Y_rec_color.reshape((dims) + (-1, 3), order='F').transpose(2, 0, 1, 3)
 
-        AC = self.A.dot(self.C[:, frame_range])
-        # TomJ: float64 will cause memory issues, use float32 instead
-        AC = AC.astype('float32')
+        AC = A_32.dot(C_32[:, frame_range])
         Y_rec = AC.reshape(dims + (-1,), order='F')
         Y_rec = Y_rec.transpose([2, 0, 1])
         if self.W is not None:
