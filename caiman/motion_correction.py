@@ -273,7 +273,9 @@ class MotionCorrect(object):
                 b0 = np.ceil(np.maximum(np.max(np.abs(self.x_shifts_els)),
                                     np.max(np.abs(self.y_shifts_els))))
         else:
-            self.motion_correct_rigid(template=template, save_movie=save_movie, progress_counter=progress_counter)
+            result = self.motion_correct_rigid(template=template, save_movie=save_movie, progress_counter=progress_counter)
+            if result == False:
+                return None
             b0 = np.ceil(np.max(np.abs(self.shifts_rig)))
         self.border_to_0 = b0.astype(int)
         self.mmap_file = self.fname_tot_els if self.pw_rigid else self.fname_tot_rig
@@ -326,12 +328,19 @@ class MotionCorrect(object):
                 is3D=self.is3D,
                 indices=self.indices,
                 progress_counter=progress_counter)
+
+            if _fname_tot_rig is None:
+                # user canceled after saving high-pass filtered file
+                return False
+
             if template is None:
                 self.total_template_rig = _total_template_rig
 
             self.templates_rig += _templates_rig
             self.fname_tot_rig += [_fname_tot_rig]
             self.shifts_rig += _shifts_rig
+
+        return True
 
     def motion_correct_pwrigid(self, save_movie:bool=True, template:np.ndarray=None, show_template:bool=False) -> None:
         """Perform pw-rigid motion correction
@@ -2863,11 +2872,16 @@ def motion_correct_batch_rigid(fname, max_shifts, dview=None, splits=56, num_spl
             m = cm.movie(
                 np.array([high_pass_filter_space(m_, gSig_filt) for m_ in m]))
 
-#            ans = messagebox.askyesno(message="Save high-pass filtered movie? (not motion-corrected)")
-            if False:  # ans:
+            ans = messagebox.askyesno(message="Save high-pass filtered movie for every ~500th frame? (not motion-corrected)")
+            if ans:
                 parts = os.path.splitext(fname)
                 save_file = parts[0] + "_high_pass_filtered.avi"
                 m.save(save_file)
+
+                ans = messagebox.askyesno(message="Saved high-pass movie. Proceed with full motion-correction?")
+                if not ans:
+                    return None, None, None, None
+
         if is3D:     
             # TODO - motion_correct_3d needs to be implemented in movies.py
             template = caiman.motion_correction.bin_median_3d(m) # motion_correct_3d has not been implemented yet - instead initialize to just median image
