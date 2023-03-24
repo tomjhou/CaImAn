@@ -35,11 +35,6 @@ from .initialization import downscale
 
 class Estimates(object):
 
-    # Local copy of two parameters used to determine whether spatial components are valid.
-    # This is necessary so that sliders will work in component plots.
-    min_SNR = -1
-    rval_thr = -1
-
     """
     Class for storing and reusing the analysis results and performing basic
     processing and plotting operations.
@@ -181,41 +176,6 @@ class Estimates(object):
         self.discarded_components = None
 
 
-    contour_fig = None
-
-    class RangeSliderLog(RangeSlider):
-
-        """Logarithmic slider.
-
-            Takes in every method and function of the matplotlib's slider.
-
-            Set slider to *val* visually so the slider still is lineat but display 10**val next to the slider.
-
-            Return 10**val to the update function (func)"""
-
-        def set_val(self, val):
-
-            val = np.sort(val)
-#            _api.check_shape((2,), val=val)
-            vmin, vmax = val
-            vmin = self._min_in_bounds(vmin)
-            vmax = self._max_in_bounds(vmax)
-            self._update_selection_poly(vmin, vmax)
-            if self.orientation == "vertical":
-                self._handles[0].set_ydata([vmin])
-                self._handles[1].set_ydata([vmax])
-            else:
-                self._handles[0].set_xdata([vmin])
-                self._handles[1].set_xdata([vmax])
-
-            self.valtext.set_text(self._format((np.power(10, vmin), np.power(10, vmax))))
-
-            if self.drawon:
-                self.ax.figure.canvas.draw_idle()
-            self.val = (vmin, vmax)
-            if self.eventson:
-                self._observers.process("changed", (vmin, vmax))
-
     def plot_contours(self, img=None, idx=None, thr_method='max',
                       thr=0.2, display_numbers=True, params=None,
                       cmap='viridis', font_color='r'):
@@ -282,98 +242,6 @@ class Estimates(object):
                                                      cmap=cmap,
                                                      ax=ax2)
             title2 = ax2.set_title(f'{len(bad)} rejected Components')
-
-        # Run this so that subsequent removal of large/small neurons will go faster
-        self.threshold_spatial_components()
-
-        """
-        These functions are LOCAL to plot_contours(), and help to dynamically update
-        the accepted/rejected components via sliders
-        """
-        def update_plot_rval(val):
-
-            self.update_params(rval_threshold=val)
-            update_plot()
-
-        def update_plot_min_snr(val):
-
-            self.update_params(min_SNR=val)
-            update_plot()
-
-        def remove_large_small_neurons(val=None):  # Need dummy arg so this can be target of slider callback
-            # Because self.remove_small_large_neurons can only take away, not add, we need to
-            # call update_params() to regenerate full idx_list.
-            self.update_params()
-            update_plot()
-
-        def update_plot(val=None):
-            """
-            Avoid  plt. commands here, as they won't work if figure is embedded in tk() window.
-            """
-
-            v = self.s_cell_size_range_slider.val
-            if self.dims[0] > 450:
-                v10 = (np.power(10, v[0]), np.power(10, v[1]))
-            else:
-                v10 = (np.power(10, v[0])/4, np.power(10, v[1])/4)
-
-            self.remove_small_large_neurons(min_size_neuro=v10[0], max_size_neuro=v10[1])
-
-            idx = self.idx_components
-            bad = list(set(range(self.A.shape[1])) - set(idx))
-
-            title1.set(text=f'{len(idx)} accepted Components')
-            title2.set(text=f'{len(bad)} rejected Components')
-
-            num_accepted = 0
-            num_bad = 0
-            for x in range(self.A.shape[1]):
-                lines = list_contours1[x]
-                accepted = (x in idx)
-                if lines is None:
-                    print(f"No lines for accepted component {x}")
-                else:
-                    for line in lines:
-                        line.set(visible=accepted)
-                lines = list_contours2[x]
-                if lines is None:
-                    print(f"No lines for rejected component {x}")
-                else:
-                    for line in lines:
-                        line.set(visible=(not accepted))
-                list_text1[x].set(visible=accepted)
-                list_text2[x].set(visible=not accepted)
-                if accepted:
-                    num_accepted += 1
-                    list_text1[x].set(text=str(num_accepted))
-                else:
-                    num_bad += 1
-                    list_text2[x].set(text=str(num_bad))
-
-        if self.SNR_comp is not None:
-            if self.min_SNR is not None:
-                min_SNR = self.min_SNR
-            else:
-                min_SNR = 5
-
-            if self.rval_thr is not None:
-                rval_thr = self.rval_thr
-            else:
-                rval_thr = 0.8
-
-            # Create slider if we have SNR values
-            # Create class object so that garbage collector doesn't delete the slider when function exits
-            self.s_r = Slider(self.contour_fig.add_axes([0.1, 0.08, 0.8, 0.03]), 'r-vals', 0, 1.0, valinit=rval_thr)
-            self.s_snr = Slider(self.contour_fig.add_axes([0.1, 0.04, 0.8, 0.03]), 'SNR', 0, 100, valinit=min_SNR)
-            self.s_r.on_changed(update_plot_rval)
-            self.s_snr.on_changed(update_plot_min_snr)
-
-            # Slider to change max/min neuron size
-            self.s_cell_size_range_slider = self.RangeSliderLog(self.contour_fig.add_axes([0.15, 0.9, 0.7, 0.03]),
-                                     'Min/max neuron area (log scale)', 0, 4, valinit=(np.log10(25), np.log10(500)))
-            self.s_cell_size_range_slider.on_changed(remove_large_small_neurons)
-            # Need to call this once or else the small/large neuron thresholds will not be applied
-            update_plot()
 
         return self
 
@@ -1237,54 +1105,6 @@ class Estimates(object):
                                                               idx_ecc))
             self.idx_components = np.intersect1d(self.idx_components, idx_ecc)
         return self
-
-    def update_params(self, min_SNR = None, rval_threshold=None):
-        """
-        Tom J.: Method to quickly reselect valid components when thresholds change.
-        Does not need to recompute r_values and SNR
-        """
-
-        if self.SNR_comp is None:
-            # Evaluator has not run yet, so no SNR calculations are present, and we can't
-            # update contour selection/rejection
-            return
-
-        def update_component_selection(r_values,
-                                       comp_SNR,
-                                       r_values_min=0.8,
-                                       r_values_lowest=-1,
-                                       min_SNR=2.5,
-                                       min_SNR_reject=0.5):
-            """
-            Tom J. This allows dynamic update of thresholds for accepting/rejecting spatial components.
-            Code is largely reused from function select_components_from_metrics() in caiman.components_evaluation.py
-            (around line 518 in that file)
-            """
-            idx_components_r = np.where(r_values >= r_values_min)[0]
-            idx_components_raw = np.where(comp_SNR > min_SNR)[0]
-            idx_components: Any = []  # changes type over the function
-
-            bad_comps = np.where((r_values <= r_values_lowest) | (comp_SNR <= min_SNR_reject))[0]
-
-            idx_components = np.union1d(idx_components, idx_components_r)
-            idx_components = np.union1d(idx_components, idx_components_raw)
-            idx_components = np.setdiff1d(idx_components, bad_comps)
-            idx_components_bad = np.setdiff1d(list(range(len(r_values))), idx_components)
-
-            return idx_components.astype(int), idx_components_bad.astype(int)
-
-        # Update one or both parameters
-        if min_SNR is not None:
-            self.min_SNR = min_SNR
-
-        if rval_threshold is not None:
-            self.rval_thr = rval_threshold
-
-        self.idx_components, self.idx_components_bad = update_component_selection(
-            self.r_values,
-            self.SNR_comp,
-            min_SNR=self.min_SNR,
-            r_values_min=self.rval_thr)
 
 
     def filter_components(self, imgs, params, new_dict={}, dview=None, select_mode='All'):
