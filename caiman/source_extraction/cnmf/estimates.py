@@ -1067,8 +1067,6 @@ class Estimates(object):
         opts = params.get_group('quality')
 
         # Save SNR values so that we can dynamically update components
-        self.min_SNR = opts['min_SNR']
-        self.rval_thr = opts['rval_thr']
         #self.r_values_lowest = opts['rval_lowest'] # Don't need this one
 
         idx_components, idx_components_bad, SNR_comp, r_values, cnn_preds = \
