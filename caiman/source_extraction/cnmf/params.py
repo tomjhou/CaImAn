@@ -962,6 +962,12 @@ class CNMFParams(object):
             set_if_not_exists: Whether to set a key-value pair in a group if the key does not currently exist in the group.
         """
 
+        # TomJ: added these lines so that if group is not specified, will try all subdictionaries
+        if group is None:
+            for gr in list(self.__dict__.keys()):
+                self.set(gr, val_dict, set_if_not_exists=set_if_not_exists, verbose=verbose)
+            return
+
         if not hasattr(self, group):
             raise KeyError('No group in CNMFParams named {0}'.format(group))
 
@@ -986,6 +992,17 @@ class CNMFParams(object):
 
         Returns: The value for the group/key combination.
         """
+
+        # TomJ: Added this to find key in any subdictionary
+        if group is None:
+            for gr in list(self.__dict__.keys()):
+                try:
+                    val = self.get(gr, key)
+                    return val
+                except KeyError as e:
+                    pass
+            raise KeyError(f'Key {key} not found in any subdictionary')
+
 
         if not hasattr(self, group):
             raise KeyError('No group in CNMFParams named {0}'.format(group))
