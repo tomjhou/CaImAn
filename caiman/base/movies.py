@@ -1313,15 +1313,6 @@ class movie(ts.timeseries):
 
         print('Type "q" to stop playing of movie')
 
-        def on_close(event):
-            close_flag = True
-            print('Closed Figure!')
-
-        if 'fig' in locals():
-            fig.canvas.mpl_connect('close_event', on_close)
-
-        close_flag = False
-
         while looping:
 
             for iddxx, frame in enumerate(self):
@@ -1385,10 +1376,6 @@ class movie(ts.timeseries):
 
                 else:
                     raise Exception('Unknown backend!')
-
-                if close_flag:
-                    looping = False
-                    terminated = True
 
             if terminated:
                 break

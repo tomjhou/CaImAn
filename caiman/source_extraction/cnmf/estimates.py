@@ -638,13 +638,14 @@ class Estimates(object):
         else:
             imgs: caiman.base.movies.movie = imgs[frame_range]
 
-        # TomJ: Convert self.A and self.C to float32, to reduce memory usage
+        # TomJ: Convert self.A and self.C (spatial and temporal components from CNMF-E)
+        # from float64 to float32, to reduce memory usage
         A_32 = np.float32(self.A.toarray())
         C_32 = np.float32(self.C)
 
         if decimation > 1:
-            imgs = imgs[0::decimation]
-            C_32 = C_32[:, 0::decimation]
+            imgs = imgs[::decimation]
+            C_32 = C_32[:, ::decimation]
 
         if use_color:
             cols_c = np.random.rand(self.C.shape[0], 1, 3)*gain_color

@@ -1051,7 +1051,8 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
 #%%
 
 
-def plot_contours(A, idx, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, display_numbers=True, max_number=None,
+def plot_contours(A, idx, Cn, movie_frames=None,
+                  thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, display_numbers=True, max_number=None,
                   cmap=None, swap_dim=False, colors='w', number_colors=None, vmin=None, vmax=None, coordinates=None,
                   contour_args={}, number_args={}, ax=None, **kwargs):
     """Plots contour of spatial components against a background image and returns their coordinates
@@ -1119,6 +1120,13 @@ def plot_contours(A, idx, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9
     else:
         ax.imshow(Cn, interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
 
+    frames = []
+    if movie_frames is not None:
+        for f in movie_frames:
+            ai = ax.imshow(f, interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
+            ai.set(visible=False)
+            frames.append(ai)
+
     if coordinates is None:
         coordinates = get_contours(A, np.shape(Cn), thr, thr_method, swap_dim)
 
@@ -1157,7 +1165,7 @@ def plot_contours(A, idx, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9
             t.set(visible=vis)
             list_text[i] = t
 
-    return coordinates, list_contours, list_text
+    return coordinates, list_contours, list_text, frames
 
 def plot_shapes(Ab, dims, num_comps=15, size=(15, 15), comps_per_row=None,
                 cmap='viridis', smoother=lambda s: median_filter(s, 3)):
