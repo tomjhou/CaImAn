@@ -13,6 +13,7 @@ import matplotlib
 import matplotlib.patches
 import matplotlib.pyplot as plt
 import matplotlib.widgets
+import matplotlib.patheffects as PathEffects  # TJ
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.ndimage import center_of_mass, median_filter
@@ -973,22 +974,26 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
     s_comp = matplotlib.widgets.Slider(axcomp, 'Component', 0, nr + nb - 1, valinit=0)
     vmax = np.percentile(img, 95)
 
+    if vmax == 0:  # TJ
+        # TJ: Sometimes only a few pixels are bright, so we need to go to 99th percentile.
+        vmax = np.percentile(img, 99)  # TJ
+
     def update(val):
         i = int(np.round(s_comp.val))
-        print(('Component:' + str(i)))
+        print(('Component:' + str(i + 1)))  # TJ
 
         if i < nr:
 
             ax1.cla()
             imgtmp = np.reshape(A[:, i].toarray(), (d1, d2), order='F')
-            ax1.imshow(imgtmp, interpolation='None', cmap=matplotlib.cm.gray, vmax=np.max(imgtmp)*0.5)
-            ax1.set_title('Spatial component ' + str(i + 1))
+            ax1.imshow(imgtmp, interpolation='None', cmap=pl.cm.gray, vmax=np.max(imgtmp)*0.5)
+            ax1.set_title('Spatial component ' + str(i + 1) + f"of {nr}")  # TJ
             ax1.axis('off')
 
             ax2.cla()
             ax2.plot(np.arange(T), Y_r[i], 'c', linewidth=3)
             ax2.plot(np.arange(T), C[i], 'r', linewidth=2)
-            ax2.set_title('Temporal component ' + str(i + 1))
+            ax2.set_title('Temporal component for ' + str(i + 1))  # TJ
             ax2.legend(labels=['Filtered raw data', 'Inferred trace'], loc=1)
             if r_values is not None:
                 metrics = 'Evaluation Metrics\nSpatial corr:% 7.3f\nSNR:% 18.3f\nCNN:' % (
@@ -1008,7 +1013,7 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
             ax1.cla()
             bkgrnd = np.reshape(b[:, i - nr], (d1, d2), order='F')
             ax1.imshow(bkgrnd, interpolation='None')
-            ax1.set_title('Spatial background ' + str(i + 1 - nr))
+            ax1.set_title('Spatial background ' + str(i + 1 - nr) + f'of {nb}')  # TJ
             ax1.axis('off')
 
             ax2.cla()
@@ -1021,13 +1026,18 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
             new_val = np.round(s_comp.val - 1)
             if new_val < 0:
                 new_val = 0
-            s_comp.set_val(new_val)
+            else:  # TJ
+                # TomJ: added else to avoid redraw if goes below 0
+                s_comp.set_val(new_val)  # TJ
 
         elif event.key == 'right':
             new_val = np.round(s_comp.val + 1)
-            if new_val > nr + nb:
-                new_val = nr + nb
-            s_comp.set_val(new_val)
+            # TomJ: fixed one off error here
+            if new_val >= nr + nb:  # TJ
+                new_val = nr + nb - 1  # TJ
+            else:  # TJ
+                # TomJ: added else to avoid redraw if goes past end
+                s_comp.set_val(new_val)  # TJ
         else:
             pass
 
@@ -1036,9 +1046,10 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
     fig.canvas.mpl_connect('key_release_event', arrow_key_image_control)
     plt.show()
 
-def plot_contours(A, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, display_numbers=True, max_number=None,
-                  cmap=None, swap_dim=False, colors='w', vmin=None, vmax=None, coordinates=None,
-                  contour_args={}, number_args={}, **kwargs):
+def plot_contours(A, Cn, movies_frames=None,  # TJ
+                  thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, display_numbers=True, max_number=None,
+                  cmap=None, swap_dim=False, colors='w', number_colors=None, vmin=None, vmax=None, coordinates=None,
+                  contour_args={}, number_args={}, ax=None, **kwargs):
     """Plots contour of spatial components against a background image and returns their coordinates
 
      Args:
@@ -1093,18 +1104,30 @@ def plot_contours(A, Cn, thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, dis
         if key in kwargs.keys():
             color = kwargs[key]
             kwargs.pop(key)
-
-    ax = plt.gca()
+    if ax is None:  # TJ
+        ax = pl.gca()  # TJ
+    ax.cla()  # TJ
     if vmax is None and vmin is None:
-        plt.imshow(Cn, interpolation=None, cmap=cmap,
+        ax.imshow(Cn, interpolation=None, cmap=cmap,  # TJ
                   vmin=np.percentile(Cn[~np.isnan(Cn)], 1),
                   vmax=np.percentile(Cn[~np.isnan(Cn)], 99))
     else:
-        plt.imshow(Cn, interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)
+        ax.imshow(Cn, interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)   # TJ
+
+    frames = []  # TJ
+    if movie_frames is not None:  # TJ
+        for f in movie_frames:  # TJ
+            ai = ax.imshow(f, interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)  # TJ
+            ai.set(visible=False)  # TJ
+            frames.append(ai)  # TJ # TJ
 
     if coordinates is None:
         coordinates = get_contours(A, np.shape(Cn), thr, thr_method, swap_dim)
-    for c in coordinates:
+        
+    list_contours = [None] * A.shape[1]  # TJ
+    list_text = [None] * A.shape[1]  # TJ
+            
+    for index, c in enumerate(coordinates):
         v = c['coordinates']
         c['bbox'] = [np.floor(np.nanmin(v[:, 1])), np.ceil(np.nanmax(v[:, 1])),
                      np.floor(np.nanmin(v[:, 0])), np.ceil(np.nanmax(v[:, 0]))]

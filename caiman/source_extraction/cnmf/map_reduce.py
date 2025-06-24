@@ -69,8 +69,12 @@ def cnmf_patches(args_in):
     #FIXME Fix in-function imports
     from caiman.source_extraction.cnmf import CNMF
     logger = logging.getLogger("caiman")
-    file_name, idx_, shapes, params = args_in
+    file_name, idx_, shapes, frames_slice, progress_counter, params = args_in  # TJ
 
+    if progress_counter is not None:  # TJ
+        progress_counter.inc(0.2)  # TJ
+
+    logger = logging.getLogger(__name__)
     name_log = os.path.basename(
         file_name[:-5]) + '_LOG_ ' + str(idx_[0]) + '_' + str(idx_[-1])
 
@@ -98,7 +102,9 @@ def cnmf_patches(args_in):
 
     logger.debug(name_log+'file loaded')
 
-    if (np.sum(np.abs(np.diff(images.reshape(timesteps, -1).T)))) > 0.1:
+    slice_frames = images.shape[0]  # TJ
+    
+    if (np.sum(np.abs(np.diff(images.reshape(slice_frames, -1).T)))) > 0.1:
 
         opts = copy(params)
         opts.set('patch', {'n_processes': 1, 'rf': None, 'stride': None})
@@ -110,6 +116,8 @@ def cnmf_patches(args_in):
         cnm = CNMF(n_processes=1, params=opts)
 
         cnm.fit(images)
+        if progress_counter is not None:  # TJ
+            progress_counter.inc(0.8)  # TJ
         return [idx_, shapes, scipy.sparse.coo_matrix(cnm.estimates.A),
                 cnm.estimates.b, cnm.estimates.C, cnm.estimates.f,
                 cnm.estimates.S, cnm.estimates.bl, cnm.estimates.c1,
@@ -120,7 +128,8 @@ def cnmf_patches(args_in):
 
 def run_CNMF_patches(file_name, shape, params, gnb=1, dview=None,
                      memory_fact=1, border_pix=0, low_rank_background=True,
-                     del_duplicates=False, indices=[slice(None)]*3):
+                     del_duplicates=False, indices=[slice(None)]*3,
+                     progress_counter=None):  # TJ
     """Function that runs CNMF in patches
 
      Either in parallel or sequentially, and return the result for each.
@@ -215,10 +224,14 @@ def run_CNMF_patches(file_name, shape, params, gnb=1, dview=None,
     idx_flat, idx_2d = extract_patch_coordinates(
         dims, rfs, strides, border_pix=border_pix, indices=indices[1:])
     args_in = []
-    patch_centers = []
+    if progress_counter is not None:  # TJ
+        progress_counter.set_max(len(idx_flat)*2)  # TJ
     for id_f, id_2d in zip(idx_flat, idx_2d):
         #        print(id_2d)
-        args_in.append((file_name, id_f, id_2d, params_copy))
+        # TomJ: Added indices[0] to allow time slicing
+        # Added progress_counter to allow progress reporting
+        # These require parallel changes in cnmf_patches to parse the extra args
+        args_in.append((file_name, id_f, id_2d, indices[0], progress_counter, params_copy))  # TJ
         if del_duplicates:
             foo = np.zeros(d, dtype=bool)
             foo[id_f] = 1
@@ -284,15 +297,17 @@ def run_CNMF_patches(file_name, shape, params, gnb=1, dview=None,
 
             patch_id += 1
 
+    T_sliced = len(range(*indices[0].indices(T)))  # TJ
+
     # INITIALIZING
     nb_patch = params.get('patch', 'nb_patch')
-    C_tot = np.zeros((count, T), dtype=np.float32)
+    C_tot = np.zeros((count, T_sliced), dtype=np.float32)  # TJ
     if params.get('init', 'center_psf'):
-        S_tot = np.zeros((count, T), dtype=np.float32)
+        S_tot = np.zeros((count, T_sliced), dtype=np.float32)  # TJ
     else:
         S_tot = None
-    YrA_tot = np.zeros((count, T), dtype=np.float32)
-    F_tot = np.zeros((max(0, num_patches * nb_patch), T), dtype=np.float32)
+    YrA_tot = np.zeros((count, T_sliced), dtype=np.float32)  # TJ
+    F_tot = np.zeros((max(0, num_patches * nb_patch), T_sliced), dtype=np.float32)  # TJ
     mask = np.zeros(d, dtype=np.uint8)
     sn_tot = np.zeros((d))
 

@@ -4,6 +4,7 @@ import bokeh
 import cv2
 import logging
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure  # TJ
 import numpy as np
 import os
 from pynwb import NWBHDF5IO, TimeSeries, NWBFile
@@ -14,6 +15,10 @@ from pynwb.device import Device
 import scipy.sparse
 import time
 import uuid
+
+# TomJ: Need the next two imports for components slider
+import pylab as pl  # TJ
+from matplotlib.widgets import Slider, RangeSlider  # TJ
 
 import caiman
 from caiman.base.rois import detect_duplicates_and_subsets, nf_match_neurons_in_binary_masks, nf_masks_to_neurof_dict
@@ -195,7 +200,7 @@ class Estimates(object):
 
     def plot_contours(self, img=None, idx=None, thr_method='max',
                       thr=0.2, display_numbers=True, params=None,
-                      cmap='viridis') -> None:
+                      cmap='viridis', font_color='r') -> None:   # TJ
         """view contours of all spatial footprints.
 
         Args:
@@ -221,9 +226,15 @@ class Estimates(object):
             img = np.reshape(np.array(self.A.mean(1)), self.dims, order='F')
         if self.coordinates is None:  # not hasattr(self, 'coordinates'):
             self.coordinates = caiman.utils.visualization.get_contours(self.A, img.shape, thr=thr, thr_method=thr_method)
-        plt.figure()
+
+        # TJ: Create new figure with axes
+        self.contour_fig = Figure()  # TJ: Must use this instead of plt.Figure, or else interactions with tk are weird
+
+        ax1 = self.contour_fig.add_subplot(1, 2, 1)  # TJ
+        ax2 = self.contour_fig.add_subplot(1, 2, 2)  # TJ
+
         if params is not None:
-            plt.suptitle('min_SNR=%1.2f, rval_thr=%1.2f, use_cnn=%i'
+            self.contour_fig.suptitle('min_SNR=%1.2f, rval_thr=%1.2f, use_cnn=%i'  # TJ
                          %(params.quality['min_SNR'],
                            params.quality['rval_thr'],
                            int(params.quality['use_cnn'])))
@@ -572,7 +583,8 @@ class Estimates(object):
                    bpx=0, thr=0., save_movie=False,
                    movie_name='results_movie.avi',
                    display=True, opencv_codec='H264',
-                   use_color=False, gain_color=4, gain_bck=0.2):
+                   use_color=False, gain_color=4, gain_bck=0.2,
+                   decimation=5):  # TJ
         """
         Displays a movie with three panels (original data (left panel),
         reconstructed data (middle panel), residual (right panel))
@@ -633,18 +645,26 @@ class Estimates(object):
         """
         dims = imgs.shape[1:]
         if 'movie' not in str(type(imgs)):
-            imgs = caiman.movie(imgs[frame_range])
-        else:
-            imgs = imgs[frame_range]
+            imgs: caiman.base.movies.movie = caiman.movie(imgs[frame_range])
+        else: caiman.base.movies.movie = imgs[frame_range]  # TJ
+
+        # TomJ: Convert self.A and self.C (spatial and temporal components from CNMF-E) from float64 to float32, to reduce memory usage
+        A_32 = np.float32(self.A.toarray())  # TJ
+        C_32 = np.float32(self.C)  # TJ
+
+        if decimation > 1:  # TJ
+            imgs: caiman::decimations  # TJ
+            C_32 = C_32[:, ::decimation]  # TJ.movie = imgs[frame_range]
 
         if use_color:
             cols_c = np.random.rand(self.C.shape[0], 1, 3)*gain_color
-            Cs = np.expand_dims(self.C[:, frame_range], -1)*cols_c
+            cols_c = np.float32(cols_c)  # TJ
+            Cs = np.expand_dims(self.C_32[:, frame_range], -1)*cols_c  # TJ
             #AC = np.tensordot(np.hstack((self.A.toarray(), self.b)), Cs, axes=(1, 0))
-            Y_rec_color = np.tensordot(self.A.toarray(), Cs, axes=(1, 0))
+            Y_rec_color = np.tensordot(A_32, Cs, axes=(1, 0))  # TJ
             Y_rec_color = Y_rec_color.reshape((dims) + (-1, 3), order='F').transpose(2, 0, 1, 3)
 
-        AC = self.A.dot(self.C[:, frame_range])
+        AC = self.A.dot(C_32[:, frame_range])  # TJ
         Y_rec = AC.reshape(dims + (-1,), order='F')
         Y_rec = Y_rec.transpose([2, 0, 1])
         if self.W is not None:
@@ -676,11 +696,11 @@ class Estimates(object):
         if use_color:
             if bpx > 0:
                 Y_rec_color = Y_rec_color[:, bpx:-bpx, bpx:-bpx]
-            mov = caiman.concatenate((np.repeat(np.expand_dims(imgs - (not include_bck) * B, -1), 3, 3),
+            mov: caiman.base.movies.movie = caiman.concatenate((np.repeat(np.expand_dims(imgs - (not include_bck) * B, -1), 3, 3),  # TJ
                                       Y_rec_color + include_bck * np.expand_dims(B*gain_bck, -1),
                                       np.repeat(np.expand_dims(Y_res * gain_res, -1), 3, 3)), axis=2)
         else:
-            mov = caiman.concatenate((imgs - (not include_bck) * B,
+            mov: caiman.base.movies.movie = caiman.concatenate((imgs[frame_range] - (not include_bck) * B,  # TJ
                                       Y_rec + include_bck * B, Y_res * gain_res), axis=2)
         if not display:
             return mov
@@ -728,7 +748,7 @@ class Estimates(object):
 
         else:
             mov.play(q_min=q_min, q_max=q_max, magnification=magnification,
-                     save_movie=save_movie, movie_name=movie_name)
+                     save_movie=save_movie, movie_name=movie_name, do_loop=False)  # TJ
 
         return mov
 
@@ -1053,6 +1073,9 @@ class Estimates(object):
         logger = logging.getLogger("caiman")
         dims = imgs.shape[1:]
         opts = params.get_group('quality')
+
+        # TJ: Save SNR values so that we can dynamically update components, self.r_values_lowest = opts['rval_lowest'] # Don't need this one
+
         idx_components, idx_components_bad, SNR_comp, r_values, cnn_preds = \
             estimate_components_quality_auto(imgs, self.A, self.C, self.b, self.f, self.YrA,
                                              params.get('data', 'fr'),

@@ -428,7 +428,7 @@ class CNMF(object):
         cnm.fit(images)
         return cnm
 
-    def fit(self, images, indices=(slice(None), slice(None))) -> None:
+    def fit(self, images, indices=(slice(None), slice(None)), progress_counter=None) -> None:  # TJ
         """
         This method uses the cnmf algorithm to find sources in data.
         After it finishes, the C, A, S, b, and f fields will be populated.
@@ -448,8 +448,9 @@ class CNMF(object):
 
         if isinstance(indices, tuple):
             indices = list(indices)
-
-        indices = [slice(None)] + indices
+        # TomJ: Changed the next line to allow time slicing
+        # indices = [slice(None)] + indices
+        indices = [time_indices] + indices  # TJ
         if len(indices) < len(images.shape):
             indices = indices + [slice(None)]*(len(images.shape) - len(indices))
 
@@ -461,6 +462,7 @@ class CNMF(object):
             self.dview = None
             logger.info("Parallel processing in a single patch is not available for loaded in memory or sliced data.")
 
+        images = images[time_indices,]  # TJ
         T = images.shape[0]
         self.params.set('online', {'init_batch': T})
         self.dims = images.shape[1:]
@@ -599,7 +601,7 @@ class CNMF(object):
                     gnb=self.params.get('init', 'nb'), border_pix=self.params.get('patch', 'border_pix'),
                     low_rank_background=self.params.get('patch', 'low_rank_background'),
                     del_duplicates=self.params.get('patch', 'del_duplicates'),
-                    indices=indices)
+                    indices=indices, progress_counter=progress_counter)  # TJ
 
             #print("D: Finished with run_CNMF_patches(), self.estimates.* are populated. Next step would be update_temporal() but first: Entering a shell.")
             #code.interact(local=dict(globals(), **locals()) )
@@ -636,7 +638,8 @@ class CNMF(object):
                             Yr, self.estimates.A.toarray(), self.estimates.C, self.dims,
                             self.params.get('init', 'ring_size_factor') *
                             self.params.get('init', 'gSiz')[0],
-                            ssub=self.params.get('init', 'ssub_B'))
+                            ssub=self.params.get('init', 'ssub_B'),
+                            progress_counter=progress_counter)  # TJ
 
                     if len(self.estimates.C):
                         self.deconvolve()

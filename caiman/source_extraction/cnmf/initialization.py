@@ -1900,7 +1900,7 @@ def extract_ac(data_filtered, data_raw, ind_ctr, patch_dims):
 
 
 @profile
-def compute_W(Y, A, C, dims, radius, data_fits_in_memory=True, ssub=1, tsub=1, parallel=False):
+def compute_W(Y, A, C, dims, radius, data_fits_in_memory=True, ssub=1, tsub=1, parallel=False, progress_counter=None):  # TJ
     """compute background according to ring model
     solves the problem
         min_{W,b0} ||X-W*X|| with X = Y - A*C - b0*1'
@@ -1978,6 +1978,8 @@ def compute_W(Y, A, C, dims, radius, data_fits_in_memory=True, ssub=1, tsub=1, p
             tmp[np.diag_indices(len(tmp))] += np.trace(tmp) * 1e-5
             tmp2 = X[p]
             data = pd_solve(tmp, B.dot(tmp2))
+            if progress_counter is not None:  # TJ
+                progress_counter.inc()  # TJ
             return index, data
     else:
 
@@ -1998,8 +2000,14 @@ def compute_W(Y, A, C, dims, radius, data_fits_in_memory=True, ssub=1, tsub=1, p
                     (ds(A)[p].dot(decimate_last_axis(C, tsub)) if A.size > 0 else 0) - \
                     ds(b0).reshape((-1, 1), order='F')[p]
             data = pd_solve(tmp, B.dot(tmp2))
+            if progress_counter is not None:  # TJ
+                progress_counter.inc()  # TJ
             return index, data
 
+    # TomJ: process_pixel takes a while to run, e.g. 15 min for a 20-min file
+    if progress_counter is not None:  # TJ
+        progress_counter.set_max(d1 * d2 * 2)  # TJ
+    logging.info("About to run parmap/map. Please wait a while (e.g. 15 minutes for a 20 min video)")  # TJ
     Q = list((parmap if parallel else map)(process_pixel, range(d1 * d2)))
     indices, data = np.array(Q, dtype=object).T
     indptr = np.concatenate([[0], np.cumsum(list(map(len, indices)))])
