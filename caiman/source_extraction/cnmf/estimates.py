@@ -653,7 +653,7 @@ class Estimates(object):
         C_32 = np.float32(self.C)  # TJ
 
         if decimation > 1:  # TJ
-            imgs: caiman::decimations  # TJ
+            imgs = imgs[::decimation]  # TJ
             C_32 = C_32[:, ::decimation]  # TJ.movie = imgs[frame_range]
 
         if use_color:
