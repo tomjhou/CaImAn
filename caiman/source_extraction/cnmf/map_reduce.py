@@ -224,6 +224,7 @@ def run_CNMF_patches(file_name, shape, params, gnb=1, dview=None,
     idx_flat, idx_2d = extract_patch_coordinates(
         dims, rfs, strides, border_pix=border_pix, indices=indices[1:])
     args_in = []
+    patch_centers = [] # TJ
     if progress_counter is not None:  # TJ
         progress_counter.set_max(len(idx_flat)*2)  # TJ
     for id_f, id_2d in zip(idx_flat, idx_2d):
