@@ -428,7 +428,7 @@ class CNMF(object):
         cnm.fit(images)
         return cnm
 
-    def fit(self, images, indices=(slice(None), slice(None)), progress_counter=None) -> None:  # TJ
+    def fit(self, images, indices=(slice(None), slice(None)), time_indices=slice(None), progress_counter=None) -> None:  # TJ
         """
         This method uses the cnmf algorithm to find sources in data.
         After it finishes, the C, A, S, b, and f fields will be populated.
