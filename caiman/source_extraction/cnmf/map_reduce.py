@@ -92,7 +92,8 @@ def cnmf_patches(args_in):
                                dims, order='F')  # indices as tuples
     slices = [slice(min_dim, max_dim + 1) for min_dim, max_dim in indices]
     # insert slice for timesteps, equivalent to :
-    slices.insert(0, slice(timesteps))
+    slices.insert(0, frames_slice)  # TomJ: Added this to allow running CNMF-E on a subset of slices
+#    slices.insert(0, slice(timesteps))
 
     images = np.reshape(Yr.T, [timesteps] + list(dims), order='F')
     if params.get('patch', 'in_memory'):
