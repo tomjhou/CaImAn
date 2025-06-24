@@ -52,6 +52,12 @@ import sys
 import tifffile
 from tqdm import tqdm
 from typing import Optional, Literal, Union
+from skimage.transform import warp as warp_sk
+
+from tkinter import messagebox  # TJ
+
+# TJ: This allows us to run PowerShell command that we need to prevent Dropbx sync
+import subprocess  # TJ
 
 import caiman
 import caiman.base.movies
@@ -204,7 +210,7 @@ class MotionCorrect(object):
         if self.use_cuda:
             logger.warn("cuda is no longer supported; this kwarg will be removed in a future version of caiman")
 
-    def motion_correct(self, template=None, save_movie=False):
+    def motion_correct(self, template=None, save_movie=False, progress_counter=None):  # TJ
         """general function for performing all types of motion correction. The
         function will perform either rigid or piecewise rigid motion correction
         depending on the attribute self.pw_rigid and will perform high pass
@@ -251,13 +257,15 @@ class MotionCorrect(object):
                 b0 = np.ceil(np.maximum(np.max(np.abs(self.x_shifts_els)),
                                     np.max(np.abs(self.y_shifts_els))))
         else:
-            self.motion_correct_rigid(template=template, save_movie=save_movie)
+            result = self.motion_correct_rigid(template=template, save_movie=save_movie, progress_counter=progress_counter)  # TJ
+            if result == False:  # TJ
+                return None  # TJ
             b0 = np.ceil(np.max(np.abs(self.shifts_rig)))
         self.border_to_0 = b0.astype(int)
         self.mmap_file = self.fname_tot_els if self.pw_rigid else self.fname_tot_rig
         return self
 
-    def motion_correct_rigid(self, template: Optional[np.ndarray] = None, save_movie=False) -> None:
+    def motion_correct_rigid(self, template: Optional[np.ndarray] = None, save_movie=False, progress_counter=None) -> None:  # TJ
         """
         Perform rigid motion correction
 
@@ -305,13 +313,19 @@ class MotionCorrect(object):
                 var_name_hdf5=self.var_name_hdf5,
                 is3D=self.is3D,
                 indices=self.indices,
-                shifts_interpolate=self.shifts_interpolate)
+                shifts_interpolate=self.shifts_interpolate,
+                progress_counter=progress_counter)  # TJ
+            if _fname_tot_rig is None:  # TJ, entire block
+                # user canceled after saving high-pass filtered file
+                return False
             if template is None:
                 self.total_template_rig = _total_template_rig
 
             self.templates_rig += _templates_rig
             self.fname_tot_rig += [_fname_tot_rig]
             self.shifts_rig += _shifts_rig
+        
+        return True  # TJ
 
     def motion_correct_pwrigid(self, save_movie:bool=True, template: Optional[np.ndarray] = None, show_template:bool=False) -> None:
         """Perform pw-rigid motion correction
@@ -2754,7 +2768,7 @@ def motion_correct_batch_rigid(fname, max_shifts, dview=None, splits=56, num_spl
                                template=None, shifts_opencv=False, save_movie_rigid=False, add_to_movie=None,
                                nonneg_movie=False, gSig_filt=None, subidx=slice(None, None, 1), use_cuda=False,
                                border_nan=True, var_name_hdf5='mov', is3D=False, indices=(slice(None), slice(None)),
-                               shifts_interpolate=False):
+                               shifts_interpolate=False, progress_counter=None):  # TJ
     """
     Function that perform memory efficient hyper parallelized rigid motion corrections while also saving a memory mappable file
 
@@ -2834,6 +2848,15 @@ def motion_correct_batch_rigid(fname, max_shifts, dview=None, splits=56, num_spl
         if gSig_filt is not None:
             m = caiman.movie(
                 np.array([high_pass_filter_space(m_, gSig_filt) for m_ in m]))
+            ans = messagebox.askyesno(message="Save high-pass filtered movie for every ~500th frame? (not motion-corrected)")  # TJ
+            if ans:  # TJ, entire block
+                parts = os.path.splitext(fname)
+                save_file = parts[0] + "_high_pass_filtered.avi"
+                m.save(save_file)
+
+                ans = messagebox.askyesno(message="Saved high-pass movie. Proceed with full motion-correction?")
+                if not ans:
+                    return None, None, None, None
         if is3D:     
             # TODO - motion_correct_3d needs to be implemented in movies.py
             template = caiman.motion_correction.bin_median_3d(m) # motion_correct_3d has not been implemented yet - instead initialize to just median image
@@ -2874,7 +2897,8 @@ def motion_correct_batch_rigid(fname, max_shifts, dview=None, splits=56, num_spl
                                                              dview=dview, save_movie=save_movie, base_name=base_name, subidx = subidx,
                                                              num_splits=num_splits_to_process, shifts_opencv=shifts_opencv, nonneg_movie=nonneg_movie, gSig_filt=gSig_filt,
                                                              use_cuda=use_cuda, border_nan=border_nan, var_name_hdf5=var_name_hdf5, is3D=is3D,
-                                                             indices=indices, shifts_interpolate=shifts_interpolate)
+                                                             indices=indices, shifts_interpolate=shifts_interpolate,
+                                                             progress_counter=progress_counter)  # TJ
         if is3D:
             new_templ = np.nanmedian(np.stack([r[-1] for r in res_rig]), 0)           
         else:
@@ -3057,7 +3081,7 @@ def tile_and_correct_wrapper(params):
     img_name, out_fname, idxs, shape_mov, template, strides, overlaps, max_shifts,\
         add_to_movie, max_deviation_rigid, upsample_factor_grid, newoverlaps, newstrides, \
         shifts_opencv, nonneg_movie, gSig_filt, is_fiji, use_cuda, border_nan, var_name_hdf5, \
-        is3D, indices, shifts_interpolate = params
+        is3D, indices, shifts_interpolate, progress_counter = params
 
 
     if isinstance(img_name, tuple):
@@ -3099,6 +3123,12 @@ def tile_and_correct_wrapper(params):
                                                                        shifts_interpolate=shifts_interpolate)
             shift_info.append([total_shift, start_step, xy_grid])
 
+        # Increment frame count in thread-safe manner
+        progress_counter.inc()  # TJ
+
+        # logging.info(f'Completed frame: {idxs[count]}')  # TJ
+
+    logging.info(f'Completed batch with: {len(idxs)} frames')  # TJ
     if out_fname is not None:
         outv = np.memmap(out_fname, mode='r+', dtype=np.float32,
                          shape=caiman.mmapping.prepare_shape(shape_mov), order='F')
@@ -3112,12 +3142,13 @@ def tile_and_correct_wrapper(params):
     new_temp[np.isnan(new_temp)] = np.nanmin(new_temp)
     return shift_info, idxs, new_temp
 
-def motion_correction_piecewise(fname, splits, strides, overlaps, add_to_movie=0, template=None,
+def motion_correction_piecewise(fname, splits, strides, overlaps, add_to_movie: int=0, template=None,
                                 max_shifts=(12, 12), max_deviation_rigid=3, newoverlaps=None, newstrides=None,
                                 upsample_factor_grid=4, order='F', dview=None, save_movie=True,
                                 base_name=None, subidx = None, num_splits=None, shifts_opencv=False, nonneg_movie=False, gSig_filt=None,
                                 use_cuda=False, border_nan=True, var_name_hdf5='mov', is3D=False,
-                                indices=(slice(None), slice(None)), shifts_interpolate=False):
+                                indices=(slice(None), slice(None)), shifts_interpolate=False,
+                                progress_counter=None): # TJ
     """
 
     """
@@ -3162,6 +3193,17 @@ def motion_correction_piecewise(fname, splits, strides, overlaps, add_to_movie=0
 
         np.memmap(fname_tot, mode='w+', dtype=np.float32,
                   shape=caiman.mmapping.prepare_shape(shape_mov), order=order)
+
+        # Prevent Dropbox from trying to sync this file
+        if "Dropbox" in fname_tot:  # TJ, entire block
+            cmd = "Set-Content -Path '" + fname_tot + "' -Stream com.dropbox.ignored -Value 1"
+
+            ret_code = subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+            print(f"Disabled Dropbox sync for F-formatted file {fname_tot}")
+            if ret_code.returncode != 0:
+                print(f"Error while running command to prevent Dropbox sync.")
+                print(f"Command was: \"{cmd}\"")
+                  
         logger.info(f'Saving file as {fname_tot}')
     else:
         fname_tot = None
@@ -3172,8 +3214,9 @@ def motion_correction_piecewise(fname, splits, strides, overlaps, add_to_movie=0
         pars.append([fname, fname_tot, idx, shape_mov, template, strides, overlaps, max_shifts, np.array(
             add_to_movie, dtype=np.float32), max_deviation_rigid, upsample_factor_grid,
             newoverlaps, newstrides, shifts_opencv, nonneg_movie, gSig_filt, is_fiji,
-            use_cuda, border_nan, var_name_hdf5, is3D, indices, shifts_interpolate])
+            use_cuda, border_nan, var_name_hdf5, is3D, indices, shifts_interpolate, progress_counter]) # TJ
 
+    print(f'Function "motion_correction_piecewise()" created {len(idxs)} jobs')  # TJ
     if dview is not None:
         logger.info('** Starting parallel motion correction **')
         if 'multiprocessing' in str(type(dview)):
