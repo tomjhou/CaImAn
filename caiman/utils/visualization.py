@@ -986,7 +986,7 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
 
             ax1.cla()
             imgtmp = np.reshape(A[:, i].toarray(), (d1, d2), order='F')
-            ax1.imshow(imgtmp, interpolation='None', cmap=pl.cm.gray, vmax=np.max(imgtmp)*0.5)
+            ax1.imshow(imgtmp, interpolation='None', cmap=matplotlib.cm.gray, vmax=np.max(imgtmp)*0.5)
             ax1.set_title('Spatial component ' + str(i + 1) + f"of {nr}")  # TJ
             ax1.axis('off')
 
