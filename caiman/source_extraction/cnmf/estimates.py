@@ -239,7 +239,7 @@ class Estimates(object):
                            params.quality['rval_thr'],
                            int(params.quality['use_cnn'])))
         if idx is None:
-            caiman.utils.visualization.plot_contours(self.A, img, coordinates=self.coordinates,
+            caiman.utils.visualization.plot_contours(self.A, None, img, coordinates=self.coordinates,  # TJ
                                                      display_numbers=display_numbers,
                                                      cmap=cmap)
         else:
@@ -248,19 +248,20 @@ class Estimates(object):
             coor_g = [self.coordinates[cr] for cr in idx]
             bad = list(set(range(self.A.shape[1])) - set(idx))
             coor_b = [self.coordinates[cr] for cr in bad]
-            plt.subplot(1, 2, 1)
-            caiman.utils.visualization.plot_contours(self.A[:, idx], img,
+            # plt.subplot(1, 2, 1)
+            caiman.utils.visualization.plot_contours(self.A[:, idx], None, img,
                                                      coordinates=coor_g,
                                                      display_numbers=display_numbers,
-                                                     cmap=cmap)
-            plt.title('Accepted Components')
-            bad = list(set(range(self.A.shape[1])) - set(idx))
-            plt.subplot(1, 2, 2)
-            caiman.utils.visualization.plot_contours(self.A[:, bad], img,
+                                                     cmap=cmap,
+                                                     ax=ax1) # TJ
+            title1 = ax1.set_title(f'{len(idx)} accepted components')
+            # plt.subplot(1, 2, 2)
+            caiman.utils.visualization.plot_contours(self.A[:, bad], None, img,
                                                      coordinates=coor_b,
                                                      display_numbers=display_numbers,
-                                                     cmap=cmap)
-            plt.title('Rejected Components')
+                                                     cmap=cmap,
+                                                     ax=ax2)  # TJ
+            title2 = ax2.set_title(f'{len(bd)} rejected components')
 
     def plot_contours_nb(self, img=None, idx=None, thr_method='max',
                          thr=0.2, params=None, line_color='white', cmap='viridis') -> None:

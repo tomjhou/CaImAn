@@ -1046,7 +1046,7 @@ def view_patches_bar(Yr, A, C, b, f, d1, d2, YrA=None, img=None,
     fig.canvas.mpl_connect('key_release_event', arrow_key_image_control)
     plt.show()
 
-def plot_contours(A, Cn, movies_frames=None,  # TJ
+def plot_contours(A, idx, Cn, movie_frames=None,  # TJ
                   thr=None, thr_method='max', maxthr=0.2, nrgthr=0.9, display_numbers=True, max_number=None,
                   cmap=None, swap_dim=False, colors='w', number_colors=None, vmin=None, vmax=None, coordinates=None,
                   contour_args={}, number_args={}, ax=None, **kwargs):
@@ -1119,7 +1119,7 @@ def plot_contours(A, Cn, movies_frames=None,  # TJ
         for f in movie_frames:  # TJ
             ai = ax.imshow(f, interpolation=None, cmap=cmap, vmin=vmin, vmax=vmax)  # TJ
             ai.set(visible=False)  # TJ
-            frames.append(ai)  # TJ # TJ
+            frames.append(ai)  # TJ
 
     if coordinates is None:
         coordinates = get_contours(A, np.shape(Cn), thr, thr_method, swap_dim)
@@ -1127,19 +1127,41 @@ def plot_contours(A, Cn, movies_frames=None,  # TJ
     list_contours = [None] * A.shape[1]  # TJ
     list_text = [None] * A.shape[1]  # TJ
             
-    for index, c in enumerate(coordinates):
+    for index, c in enumerate(coordinates): # TJ
         v = c['coordinates']
         c['bbox'] = [np.floor(np.nanmin(v[:, 1])), np.ceil(np.nanmax(v[:, 1])),
                      np.floor(np.nanmin(v[:, 0])), np.ceil(np.nanmax(v[:, 0]))]
-        plt.plot(*v.T, c=colors, **contour_args)
+        # Returns line list
+        lines = ax.plot(*v.T, c=colors, **contour_args)  # TJ
+        vis = index in idx  # TJ
+        for line in lines:  # TJ
+            line.set(visible=vis)  # TJ
+        list_contours[index] = lines  # TJ
 
     if display_numbers:
-        nr = A.shape[1]
+        d1, d2 = np.shape(Cn)
+        d, nr = np.shape(A)
+        cm = caiman.base.rois.com(A, d1, d2)
         if max_number is None:
             max_number = nr
-        for i, c in zip(range(np.minimum(nr, max_number)), coordinates):
-            ax.text(c['CoM'][1], c['CoM'][0], str(i + 1), color=colors, **number_args)
-    return coordinates
+
+        # TJ: numbers are black, to stand out from white contours
+        if number_colors is not None:  # TJ
+            colors = number_colors  # TJ
+            
+#        for i, c in zip(range(np.minimum(nr, max_number)), coordinates):
+#            ax.text(c['CoM'][1], c['CoM'][0], str(i + 1), color=colors, **number_args)
+            
+        for i in range(np.minimum(nr, max_number)):
+            if swap_dim:
+                t = ax.text(cm[i, 0], cm[i, 1], str(i + 1), color=colors, **number_args)  # TJ
+            else:
+                t = ax.text(cm[i, 1], cm[i, 0], str(i + 1), color=colors, **number_args)  # TJ
+            t.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])  # TJ
+            vis = i in idx  # TJ
+            t.set(visible=vis)  # TJ
+            list_text[i] = t  # TJ
+    return coordinates, list_contours, list_text, frames  # TJ
 
 def plot_shapes(Ab, dims, num_comps=15, size=(15, 15), comps_per_row=None,
                 cmap='viridis', smoother=lambda s: median_filter(s, 3)):
