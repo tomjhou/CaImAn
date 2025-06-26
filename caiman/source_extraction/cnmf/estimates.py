@@ -660,7 +660,7 @@ class Estimates(object):
         if use_color:
             cols_c = np.random.rand(self.C.shape[0], 1, 3)*gain_color
             cols_c = np.float32(cols_c)  # TJ
-            Cs = np.expand_dims(self.C_32[:, frame_range], -1)*cols_c  # TJ
+            Cs = np.expand_dims(C_32[:, frame_range], -1)*cols_c  # TJ
             #AC = np.tensordot(np.hstack((self.A.toarray(), self.b)), Cs, axes=(1, 0))
             Y_rec_color = np.tensordot(A_32, Cs, axes=(1, 0))  # TJ
             Y_rec_color = Y_rec_color.reshape((dims) + (-1, 3), order='F').transpose(2, 0, 1, 3)
