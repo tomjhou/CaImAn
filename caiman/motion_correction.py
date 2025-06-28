@@ -3124,7 +3124,8 @@ def tile_and_correct_wrapper(params):
             shift_info.append([total_shift, start_step, xy_grid])
 
         # Increment frame count in thread-safe manner
-        progress_counter.inc()  # TJ
+        if progress_counter is not None:
+            progress_counter.inc()  # TJ
 
         # logging.info(f'Completed frame: {idxs[count]}')  # TJ
 

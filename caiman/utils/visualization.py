@@ -1105,7 +1105,7 @@ def plot_contours(A, idx, Cn, movie_frames=None,  # TJ
             color = kwargs[key]
             kwargs.pop(key)
     if ax is None:  # TJ
-        ax = pl.gca()  # TJ
+        ax = plt.gca()  # TJ
     ax.cla()  # TJ
     if vmax is None and vmin is None:
         ax.imshow(Cn, interpolation=None, cmap=cmap,  # TJ
@@ -1133,9 +1133,10 @@ def plot_contours(A, idx, Cn, movie_frames=None,  # TJ
                      np.floor(np.nanmin(v[:, 0])), np.ceil(np.nanmax(v[:, 0]))]
         # Returns line list
         lines = ax.plot(*v.T, c=colors, **contour_args)  # TJ
-        vis = index in idx  # TJ
-        for line in lines:  # TJ
-            line.set(visible=vis)  # TJ
+        if idx is not None:
+            vis = index in idx  # TJ
+            for line in lines:  # TJ
+                line.set(visible=vis)  # TJ
         list_contours[index] = lines  # TJ
 
     if display_numbers:
@@ -1158,8 +1159,9 @@ def plot_contours(A, idx, Cn, movie_frames=None,  # TJ
             else:
                 t = ax.text(cm[i, 1], cm[i, 0], str(i + 1), color=colors, **number_args)  # TJ
             t.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])  # TJ
-            vis = i in idx  # TJ
-            t.set(visible=vis)  # TJ
+            if idx is not None:
+                vis = i in idx  # TJ
+                t.set(visible=vis)  # TJ
             list_text[i] = t  # TJ
     return coordinates, list_contours, list_text, frames  # TJ
 
