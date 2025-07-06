@@ -2038,6 +2038,10 @@ def play_movie(movie,
             frame_in = frame_in[bord_px:-bord_px, bord_px:-bord_px]
         out = cv2.VideoWriter(movie_name, fourcc, 30.,
                               tuple([int(magnification * s) for s in frame_in.shape[1::-1]]))
+
+    # If movie is float64 or float32, then values are displayed in 0-1 range, but need to be converted to 0-255 for saved movie
+    need_save_rescaling = movie.dtype == 'float64' or movie.dtype == 'float32'
+
     while looping:
         frame_sum = 0
         for iddxx, frame in enumerate(load_iter(movie, subindices, var_name_hdf5) if it else movie[subindices]):
@@ -2053,8 +2057,14 @@ def play_movie(movie,
                     if save_movie:
                         if frame.ndim < 3:
                             frame = np.repeat(frame[:, :, None], 3, axis=-1)
-                        frame = frame.astype('u1') 
-                        out.write(frame)
+                        if need_save_rescaling:
+                            frame2 = frame.copy() * 256
+                            frame2[frame2 < 0] = 0
+                            frame2[frame2 >= 255] = 255
+                            frame_out = frame2.astype('u1')
+                        else:
+                            frame_out = frame.astype('u1')
+                        out.write(frame_out)
                     if backend == 'opencv' and (cv2.waitKey(int(1. / fr * 1000)) & 0xFF == ord('q')):
                         looping = False
                         terminated = True

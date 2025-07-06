@@ -661,16 +661,16 @@ class Estimates(object):
             cols_c = np.random.rand(self.C.shape[0], 1, 3)*gain_color
             cols_c = np.float32(cols_c)  # TJ
             Cs = np.expand_dims(C_32[:, frame_range], -1)*cols_c  # TJ
-            #AC = np.tensordot(np.hstack((self.A.toarray(), self.b)), Cs, axes=(1, 0))
+            #AC_32 = np.tensordot(np.hstack((A_32.toarray(), self.b)), Cs, axes=(1, 0))
             Y_rec_color = np.tensordot(A_32, Cs, axes=(1, 0))  # TJ
             Y_rec_color = Y_rec_color.reshape((dims) + (-1, 3), order='F').transpose(2, 0, 1, 3)
 
-        AC = self.A.dot(C_32[:, frame_range])  # TJ
-        Y_rec = AC.reshape(dims + (-1,), order='F')
+        AC_32 = A_32.dot(C_32[:, frame_range])  # TJ
+        Y_rec = AC_32.reshape(dims + (-1,), order='F')
         Y_rec = Y_rec.transpose([2, 0, 1])
         if self.W is not None:
             ssub_B = int(round(np.sqrt(np.prod(dims) / self.W.shape[0])))
-            B = imgs.reshape((-1, np.prod(dims)), order='F').T - AC
+            B = imgs.reshape((-1, np.prod(dims)), order='F').T - AC_32
             if ssub_B == 1:
                 B = self.b0[:, None] + self.W.dot(B - self.b0[:, None])
             else:
@@ -712,7 +712,7 @@ class Estimates(object):
                 out = cv2.VideoWriter(movie_name, fourcc, 30.0,
                                       tuple([int(magnification*s) for s in mov.shape[1:][::-1]]))
             contours = []
-            for a in self.A.T.toarray():
+            for a in A_32.T.toarray():
                 a = a.reshape(dims, order='F')
                 if bpx > 0:
                     a = a[bpx:-bpx, bpx:-bpx]
