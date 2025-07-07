@@ -2828,7 +2828,12 @@ def motion_correct_batch_rigid(fname, max_shifts, dview=None, splits=56, num_spl
 
     dims, T = caiman.base.movies.get_file_size(fname, var_name_hdf5=var_name_hdf5)
     Ts = np.arange(T)[subidx].shape[0]
-    step = Ts // 10 if is3D else Ts // 50
+
+    # Step for saved high-pass video
+    if Ts < 1000:
+        step = 10
+    else:
+        step = Ts // 10 if is3D else Ts // 500
     corrected_slicer = slice(subidx.start, subidx.stop, step + 1)
     m = caiman.load(fname, var_name_hdf5=var_name_hdf5, subindices=corrected_slicer)
 
@@ -2848,7 +2853,7 @@ def motion_correct_batch_rigid(fname, max_shifts, dview=None, splits=56, num_spl
         if gSig_filt is not None:
             m = caiman.movie(
                 np.array([high_pass_filter_space(m_, gSig_filt) for m_ in m]))
-            ans = messagebox.askyesno(message="Save high-pass filtered movie for every ~500th frame? (not motion-corrected)")  # TJ
+            ans = messagebox.askyesno(message=f"Save high-pass filtered movie for every {step}th frame? (not motion-corrected)")  # TJ
             if ans:  # TJ, entire block
                 parts = os.path.splitext(fname)
                 save_file = parts[0] + "_high_pass_filtered.avi"
